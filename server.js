@@ -13,6 +13,7 @@ const { db } = require("./config/firebase");
 const app = express();
 
 // Security middleware
+app.set("trust proxy", 1);
 app.use(helmet());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
