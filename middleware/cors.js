@@ -4,7 +4,7 @@ const setupCors = (app) => {
 	const allowedOrigins = [
 		// "chrome-extension://jljjfepaodplbddocioanpaejljnacco",
 		// "chrome-extension://plfedpbcigbeimikfacphiajepnclkph",
-		process.env.EXTENSION_KEY ||
+		process.env.EXTENSION_URL ||
 			"chrome-extension://onoibopfcnnjlfiofjbpcjbmfeioaagm",
 		"chrome-extension://onoibopfcnnjlfiofjbpcjbmfeioaagm",
 		"https://app.colddmspro.com",
