@@ -2,8 +2,11 @@ const cors = require("cors");
 
 const setupCors = (app) => {
 	const allowedOrigins = [
-		"chrome-extension://jljjfepaodplbddocioanpaejljnacco",
-		"chrome-extension://plfedpbcigbeimikfacphiajepnclkph",
+		// "chrome-extension://jljjfepaodplbddocioanpaejljnacco",
+		// "chrome-extension://plfedpbcigbeimikfacphiajepnclkph",
+		process.env.EXTENSION_KEY ||
+			"chrome-extension://onoibopfcnnjlfiofjbpcjbmfeioaagm",
+		"chrome-extension://onoibopfcnnjlfiofjbpcjbmfeioaagm",
 		"https://app.colddmspro.com",
 		"https://colddmspro.com",
 		"https://running.colddmspro.com",
