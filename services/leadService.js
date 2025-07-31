@@ -51,6 +51,44 @@ class LeadService {
 		}
 	}
 
+	static async unAssignLeads(campaignID, count = 200) {
+		try {
+			// Get unassigned leads for this campaign
+			const leadsSnapshot = await db
+				.collection("leads")
+				.where("campaignId", "==", campaignID)
+				// .where("assignedAccount", "==", "")
+				.limit(count)
+				.get();
+
+			const batch = db.batch();
+			const assignedAt = admin.firestore.FieldValue.serverTimestamp();
+
+			// this.lastReassignedAt = data.lastReassignedAt || null;
+			// this.previousAccount = data.previousAccount || null;
+			// this.reassignmentCount = data.reassignmentCount || 0;
+
+			leadsSnapshot.forEach((doc) => {
+				// else dont update assignedAt
+				batch.update(doc.ref, {
+					assignedAccount: "",
+					lastReassignedAt: assignedAt,
+					status: "ready",
+				});
+			});
+
+			await batch.commit();
+
+			console.log(
+				`Assigned ${leadsSnapshot.size} leads to account ${accountId}`
+			);
+			return leadsSnapshot.size;
+		} catch (error) {
+			console.error("Error assigning leads:", error);
+			throw error;
+		}
+	}
+
 	static async fetchLeadsForProcessing(campaignID, accountId, batchSize = 8) {
 		try {
 			const leadsSnapshot = await db

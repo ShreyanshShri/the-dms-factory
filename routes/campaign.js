@@ -359,6 +359,8 @@ router.patch("/pause", async (req, res) => {
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 		});
 
+		await LeadService.unAssignLeads(campaignID, 200);
+
 		res.json({ success: true, message: "Campaign paused successfully" });
 	} catch (error) {
 		console.error("Error pausing campaign:", error);
