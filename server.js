@@ -6,7 +6,6 @@ const campaignRoutes = require("./routes/campaign");
 const authRoutes = require("./routes/auth");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 // Security middleware
 app.use(helmet());
@@ -33,6 +32,10 @@ app.get("/health", (req, res) => {
 	res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
+app.get("/", (req, res) => {
+	res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
 	console.error(err.stack);
@@ -50,8 +53,9 @@ app.use("*", (req, res) => {
 
 // Only start server if not in test environment
 let server;
+const PORT = process.env.PORT || 3000;
 if (process.env.NODE_ENV !== "test") {
-	server = app.listen(PORT, () => {
+	server = app.listen(PORT, "0.0.0.0", () => {
 		console.log(`ColdDMs Pro Backend running on port ${PORT}`);
 	});
 }
