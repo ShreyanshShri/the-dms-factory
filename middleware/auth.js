@@ -5,13 +5,11 @@ const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-jwt-key";
 
 const authenticateToken = async (req, res, next) => {
 	try {
-		// Extract JWT from cookies
-		const token = req.headers.cookie
-			?.split(";")
-			.find((c) => c.trim().startsWith("jwt_token="))
-			?.split("=")[1];
+		// Extract JWT from parsed cookies (much more reliable)
+		const token = req.cookies.jwt_token;
 
 		if (!token) {
+			console.log("No token provided: ", req.cookies);
 			return res
 				.status(401)
 				.json({ success: false, message: "No token provided" });

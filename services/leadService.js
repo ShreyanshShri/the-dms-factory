@@ -54,10 +54,11 @@ class LeadService {
 	static async unAssignLeads(campaignID, count = 200) {
 		try {
 			// Get unassigned leads for this campaign
+			// .where("assignedAccount", "==", "")
 			const leadsSnapshot = await db
 				.collection("leads")
 				.where("campaignId", "==", campaignID)
-				// .where("assignedAccount", "==", "")
+				.where("status", "==", "ready")
 				.limit(count)
 				.get();
 
@@ -79,12 +80,10 @@ class LeadService {
 
 			await batch.commit();
 
-			console.log(
-				`Assigned ${leadsSnapshot.size} leads to account ${accountId}`
-			);
+			console.log(`Unassigned ${leadsSnapshot.size} leads`);
 			return leadsSnapshot.size;
 		} catch (error) {
-			console.error("Error assigning leads:", error);
+			console.error("Error unassigning leads:", error);
 			throw error;
 		}
 	}
