@@ -11,13 +11,3 @@ admin.initializeApp({
 const db = admin.firestore();
 
 module.exports = { admin, db };
-
-// 🔍 Test Firebase Connection (add this block to the end)
-(async () => {
-	try {
-		await db.collection("test").doc("hello").set({ hello: "world" });
-		console.log("✅ Firestore write successful.");
-	} catch (err) {
-		console.error("❌ Firebase connection failed:", err);
-	}
-})();

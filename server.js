@@ -5,6 +5,8 @@ const { setupCors } = require("./middleware/cors");
 const campaignRoutes = require("./routes/campaign");
 const authRoutes = require("./routes/auth");
 
+const { db } = require("./config/firebase");
+
 const app = express();
 
 // Security middleware
@@ -34,6 +36,17 @@ app.get("/health", (req, res) => {
 
 app.get("/", (req, res) => {
 	res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
+app.get("/test-firebase", async (req, res) => {
+	try {
+		await db.collection("test").doc("hello").set({ hello: "world" });
+		console.log("✅ Firestore write successful.");
+		res.status(200).json({ success: true });
+	} catch (err) {
+		console.error("❌ Firebase connection failed:", err);
+		res.status(500).json({ success: false, error: err.message });
+	}
 });
 
 // Error handling middleware
