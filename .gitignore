@@ -1,6 +1,12 @@
+# IDE
 .vscode/
-node_modules/
 
+# Backend
+node_modules/
 .env
 formatter.json
 log.txt
+
+# Frontend
+client/node_modules/
+client/build/
