@@ -98,7 +98,7 @@ router.post("/register", async (req, res) => {
 		res.cookie("jwt_token", token, {
 			httpOnly: true,
 			secure: process.env.NODE_ENV === "production",
-			sameSite: "None",
+			sameSite: process.env.NODE_ENV === "production" ? "None" : "lax",
 			maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 		});
 
@@ -176,7 +176,7 @@ router.post("/login", async (req, res) => {
 		res.cookie("jwt_token", token, {
 			httpOnly: true,
 			secure: process.env.NODE_ENV === "production",
-			sameSite: "None",
+			sameSite: process.env.NODE_ENV === "production" ? "None" : "lax",
 			maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 		});
 

@@ -10,3 +10,4 @@ log.txt
 # Frontend
 client/node_modules/
 client/build/
+config/firebase-service-account.json

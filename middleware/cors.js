@@ -9,7 +9,7 @@ const setupCors = (app) => {
 		"https://colddmspro.com",
 		"https://running.colddmspro.com",
 		"https://the-dms-factory.onrender.com",
-		// "http://localhost:5000",
+		"http://localhost:5000",
 	];
 
 	const corsOptions = {

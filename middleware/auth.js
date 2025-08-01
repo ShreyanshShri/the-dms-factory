@@ -4,8 +4,8 @@ const { db } = require("../config/firebase");
 const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-jwt-key";
 
 const authenticateToken = async (req, res, next) => {
+	console.log(JWT_SECRET);
 	try {
-		// Extract JWT from parsed cookies (much more reliable)
 		const token = req.cookies.jwt_token;
 
 		if (!token) {
