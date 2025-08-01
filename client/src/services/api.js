@@ -18,7 +18,9 @@ axiosInstance.interceptors.response.use(
 	(response) => response.data,
 	(error) => {
 		// Only redirect on 401 for specific cases, not everything
+		const isAuthCheckRoute = !window.location.pathname.startsWith("/login");
 		if (
+			isAuthCheckRoute &&
 			error.response?.status === 401 &&
 			error.config?.url?.includes("/auth/me")
 		) {
