@@ -2,11 +2,14 @@ const { db } = require("../config/firebase");
 
 class User {
 	constructor(data) {
+		// immutables
 		this.uid = data.uid;
 		this.name = data.name;
 		this.email = data.email;
-		this.isSubscribed = data.isSubscribed || true;
 		this.createdAt = data.createdAt || Date.now();
+
+		// mutables
+		this.isSubscribed = data.isSubscribed || true;
 		this.updatedAt = data.updatedAt || Date.now();
 	}
 

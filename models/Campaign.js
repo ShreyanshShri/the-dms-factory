@@ -2,12 +2,12 @@ const { db, admin } = require("../config/firebase");
 
 class Campaign {
 	constructor(data) {
+		// immutable (as in shouldnt be modified by within the server, only on instruction from the client)
 		this.id = data.id;
 		this.userId = data.userId;
 		this.name = data.name;
 		this.description = data.description;
 		this.platform = data.platform; // 'instagram' or 'twitter'
-		this.status = data.status || "ready";
 		this.totalLeads = data.totalLeads || 0;
 		this.variants = data.variants || [];
 		this.workingHours = data.workingHours || { start: 0, end: 24 };
@@ -17,7 +17,9 @@ class Campaign {
 		this.autoLikeNewestPost = data.autoLikeNewestPost || false;
 		this.withinWorkingHours = data.withinWorkingHours || true;
 		this.createdAt = data.createdAt || Date.now();
+		// mutable
 		this.updatedAt = data.updatedAt || Date.now();
+		this.status = data.status || "ready";
 	}
 
 	static async findById(campaignId) {

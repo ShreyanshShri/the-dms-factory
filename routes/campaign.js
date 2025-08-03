@@ -179,6 +179,7 @@ router.post("/create", async (req, res) => {
 				const firstBatch = leadBatches[0];
 				firstBatch.forEach((username) => {
 					const leadRef = db.collection("leads").doc();
+
 					transaction.set(leadRef, {
 						campaignId: campaignId,
 						username: username,
@@ -188,6 +189,10 @@ router.post("/create", async (req, res) => {
 						baseDate: Date.now(),
 						assignedAccount: "",
 						followUps: [],
+						assignedAt: null,
+						lastReassignedAt: null,
+						previousAccount: null,
+						reassignmentCount: 0,
 					});
 				});
 			}
@@ -275,13 +280,6 @@ router.post("/start", async (req, res) => {
 				.json({ success: false, message: "Campaign not found" });
 		}
 
-		// Get pending leads count
-		const leadsSnapshot = await db
-			.collection("leads")
-			.where("assignedAccount", "==", widgetId)
-			.where("status", "==", "ready")
-			.get();
-
 		// Create or update account
 		const accountId = widgetId;
 		const accountData = {
@@ -292,7 +290,7 @@ router.post("/start", async (req, res) => {
 			currentCampaignId: campaignID,
 			createdAt: Date.now(),
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-			pendingLeadsCount: leadsSnapshot.size,
+			pendingLeadsCount: 0,
 		};
 
 		await db
@@ -307,7 +305,18 @@ router.post("/start", async (req, res) => {
 		});
 
 		// Assign leads to this account
-		await LeadService.assignLeadsToAccount(campaignID, accountId, 200);
+		await LeadService.assignLeadsToAccount(campaignID, accountId, 24);
+
+		// Get pending leads count
+		const leadsSnapshot = await db
+			.collection("leads")
+			.where("assignedAccount", "==", widgetId)
+			.where("status", "==", "ready")
+			.get();
+
+		await db.collection("accounts").doc(accountId).update({
+			pendingLeadsCount: leadsSnapshot.size,
+		});
 
 		const updatedUser = await db.collection("accounts").doc(accountId).get();
 		const updatedUserData = updatedUser.data();
@@ -359,7 +368,7 @@ router.patch("/pause", async (req, res) => {
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 		});
 
-		await LeadService.unAssignLeads(campaignID, 200);
+		await LeadService.unAssignLeads(campaignID, accountId, 24);
 
 		res.json({ success: true, message: "Campaign paused successfully" });
 	} catch (error) {
@@ -423,7 +432,7 @@ router.get("/account-status", async (req, res) => {
 // GET /api/v1/campaign/campaign-status - Check campaign status // done
 router.get("/campaign-status", async (req, res) => {
 	try {
-		const { campaignID } = req.query;
+		const { campaignID, timezone } = req.query;
 
 		if (!campaignID) {
 			return res
@@ -443,7 +452,8 @@ router.get("/campaign-status", async (req, res) => {
 
 		// Check working hours
 		const withinWorkingHours = WorkingHoursService.isWithinWorkingHours(
-			campaignData.workingHours || { start: 0, end: 24 }
+			campaignData.workingHours || { start: 0, end: 24 },
+			timezone || "America/New_York"
 		);
 
 		res.json({
@@ -473,7 +483,7 @@ router.get("/campaign-status", async (req, res) => {
 // GET /api/v1/campaign/fetch-leads - Get leads for processing // done
 router.get("/fetch-leads", async (req, res) => {
 	try {
-		const { campaignID, accountId } = req.query;
+		const { campaignID, accountId, timezone } = req.query;
 
 		if (!campaignID || !accountId) {
 			return res.status(400).json({
@@ -494,9 +504,9 @@ router.get("/fetch-leads", async (req, res) => {
 
 		// Check working hours
 		const withinWorkingHours = WorkingHoursService.isWithinWorkingHours(
-			campaignData.workingHours || { start: 0, end: 24 }
+			campaignData.workingHours || { start: 0, end: 24 },
+			timezone || "America/New_York"
 		);
-
 		if (!withinWorkingHours) {
 			return res.status(400).json({
 				success: true,
@@ -506,11 +516,37 @@ router.get("/fetch-leads", async (req, res) => {
 			});
 		}
 
-		const leads = await LeadService.fetchLeadsForProcessing(
+		let leads = await LeadService.fetchLeadsForProcessing(
 			campaignID,
 			accountId,
 			8
 		);
+
+		// if no assigned leads
+		if (leads.length === 0) {
+			// try assigning
+			const leadsCount = await LeadService.assignLeadsToAccount(
+				campaignID,
+				accountId,
+				24
+			);
+			if (leadsCount === 0) {
+				// if cant assign then no leads left
+				return res.status(400).json({
+					success: true,
+					leads: [],
+					batchSize: 0,
+					message: "No leads available",
+				});
+			} else {
+				leads = await LeadService.fetchLeadsForProcessing(
+					campaignID,
+					accountId,
+					8
+				);
+			}
+		}
+
 		const rateInfo = await RateService.getRateLimitInfo(accountId);
 		const workingHoursInfo = WorkingHoursService.getWorkingHoursProgress();
 

@@ -2,19 +2,22 @@ const { db, admin } = require("../config/firebase");
 
 class Lead {
 	constructor(data) {
+		// immutables
 		this.id = data.id;
 		this.campaignId = data.campaignId;
 		this.username = data.username;
 		this.type = data.type || "initial";
-		this.status = data.status || "ready";
-		this.sent = data.sent || false;
 		this.baseDate = data.baseDate;
-		this.assignedAccount = data.assignedAccount || "";
 		this.assignedAt = data.assignedAt;
+		this.followUps = data.followUps || [];
+
+		// mutables
+		this.assignedAccount = data.assignedAccount || "";
 		this.lastReassignedAt = data.lastReassignedAt || null;
+		this.sent = data.sent || false;
+		this.status = data.status || "ready";
 		this.previousAccount = data.previousAccount || null;
 		this.reassignmentCount = data.reassignmentCount || 0;
-		this.followUps = data.followUps || [];
 	}
 
 	static async findById(leadId) {

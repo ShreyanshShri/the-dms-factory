@@ -2,15 +2,17 @@ const { db, admin } = require("../config/firebase");
 
 class Account {
 	constructor(data) {
+		// immutable
 		this.id = data.id; // This is the widgetId
 		this.userId = data.userId;
 		this.displayName = data.displayName;
 		this.platform = data.platform;
-		this.status = data.status || "ready";
-		this.currentCampaignId = data.currentCampaignId;
-		this.pendingLeadsCount = data.pendingLeadsCount || 0;
 		this.createdAt = data.createdAt || Date.now();
+		// mutable
+		this.currentCampaignId = data.currentCampaignId;
+		this.status = data.status || "ready";
 		this.lastUpdated = data.lastUpdated;
+		this.pendingLeadsCount = data.pendingLeadsCount || 0;
 	}
 
 	static async findById(accountId) {

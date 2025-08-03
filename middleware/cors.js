@@ -14,7 +14,7 @@ const setupCors = (app) => {
 
 	const corsOptions = {
 		origin: function (origin, callback) {
-			console.log("CORS check for origin:", origin);
+			// console.log("CORS check for origin:", origin);
 			if (!origin || allowedOrigins.includes(origin)) {
 				callback(null, true);
 			} else {
