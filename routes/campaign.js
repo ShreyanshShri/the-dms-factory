@@ -718,4 +718,267 @@ router.post("/analytics", async (req, res) => {
 	}
 });
 
+// for frontends
+// GET /api/v1/campaign/:campaignId - Get single campaign by ID
+router.get("/:campaignId", async (req, res) => {
+	try {
+		const { campaignId } = req.params;
+
+		if (!campaignId) {
+			return res
+				.status(HTTP_STATUS.BAD_REQUEST)
+				.json(createResponse(false, null, "Campaign ID is required"));
+		}
+
+		const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
+
+		if (!campaignDoc.exists) {
+			return res
+				.status(HTTP_STATUS.NOT_FOUND)
+				.json(createResponse(false, null, "Campaign not found"));
+		}
+
+		const campaignData = campaignDoc.data();
+
+		// Verify campaign belongs to user
+		if (campaignData.userId !== req.user.uid) {
+			return res
+				.status(HTTP_STATUS.FORBIDDEN)
+				.json(createResponse(false, null, "Access denied"));
+		}
+
+		// Get campaign stats
+		const leadsSnapshot = await db
+			.collection("leads")
+			.where("campaignId", "==", campaignId)
+			.get();
+
+		const sentLeadsSnapshot = await db
+			.collection("leads")
+			.where("campaignId", "==", campaignId)
+			.where("sent", "==", true)
+			.get();
+
+		const analyticsSnapshot = await db
+			.collection("analytics")
+			.where("campaignID", "==", campaignId)
+			.get();
+
+		const stats = {
+			totalLeads: leadsSnapshot.size,
+			sentLeads: sentLeadsSnapshot.size,
+			pendingLeads: leadsSnapshot.size - sentLeadsSnapshot.size,
+			totalAnalytics: analyticsSnapshot.size,
+		};
+
+		res.json(
+			createResponse(
+				true,
+				{
+					id: campaignId,
+					...campaignData,
+					stats,
+				},
+				"Campaign fetched successfully"
+			)
+		);
+	} catch (error) {
+		console.error("Error fetching campaign:", error);
+		res
+			.status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+			.json(createResponse(false, null, "Failed to fetch campaign"));
+	}
+});
+
+// PUT /api/v1/campaign/:campaignId - Update campaign
+router.put("/:campaignId", async (req, res) => {
+	try {
+		const { campaignId } = req.params;
+		const {
+			name,
+			description,
+			platform,
+			newLeads, // Only new leads to be added
+			variants,
+			workingHours,
+			messageLimits,
+			followUser,
+			autoLikeStory,
+			autoLikeNewestPost,
+			tag,
+		} = req.body;
+
+		if (!campaignId) {
+			return res
+				.status(HTTP_STATUS.BAD_REQUEST)
+				.json(createResponse(false, null, "Campaign ID is required"));
+		}
+
+		// Get existing campaign
+		const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
+
+		if (!campaignDoc.exists) {
+			return res
+				.status(HTTP_STATUS.NOT_FOUND)
+				.json(createResponse(false, null, "Campaign not found"));
+		}
+
+		const existingCampaign = campaignDoc.data();
+
+		// Verify campaign belongs to user
+		if (existingCampaign.userId !== req.user.uid) {
+			return res
+				.status(HTTP_STATUS.FORBIDDEN)
+				.json(createResponse(false, null, "Access denied"));
+		}
+
+		// Check if campaign is running - only allow certain updates
+		if (existingCampaign.status === "active") {
+			// Only allow updating certain fields when campaign is active
+			const allowedUpdates = {
+				name: name?.trim() || existingCampaign.name,
+				description: description?.trim() || existingCampaign.description,
+				tag: tag?.trim() || existingCampaign.tag,
+				workingHours: workingHours || existingCampaign.workingHours,
+				messageLimits: messageLimits || existingCampaign.messageLimits,
+				followUser:
+					followUser !== undefined ? followUser : existingCampaign.followUser,
+				autoLikeStory:
+					autoLikeStory !== undefined
+						? autoLikeStory
+						: existingCampaign.autoLikeStory,
+				autoLikeNewestPost:
+					autoLikeNewestPost !== undefined
+						? autoLikeNewestPost
+						: existingCampaign.autoLikeNewestPost,
+				updatedAt: Date.now(),
+				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+			};
+
+			await db.collection("campaigns").doc(campaignId).update(allowedUpdates);
+
+			return res.json(
+				createResponse(
+					true,
+					{
+						id: campaignId,
+						...existingCampaign,
+						...allowedUpdates,
+					},
+					"Campaign updated successfully (limited updates while active)"
+				)
+			);
+		}
+
+		// Full update for non-active campaigns
+		const updateData = {
+			updatedAt: Date.now(),
+			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+		};
+
+		// Update fields if provided
+		if (name) updateData.name = name.trim();
+		if (description) updateData.description = description.trim();
+		if (tag) updateData.tag = tag.trim();
+		if (platform && ["instagram", "twitter"].includes(platform)) {
+			updateData.platform = platform;
+		}
+		if (workingHours) updateData.workingHours = workingHours;
+		if (messageLimits) updateData.messageLimits = messageLimits;
+		if (followUser !== undefined) updateData.followUser = followUser;
+		if (autoLikeStory !== undefined) updateData.autoLikeStory = autoLikeStory;
+		if (autoLikeNewestPost !== undefined)
+			updateData.autoLikeNewestPost = autoLikeNewestPost;
+
+		// Handle variants update
+		if (variants && Array.isArray(variants)) {
+			const invalidVariants = variants.filter(
+				(variant) => !variant.message || variant.message.trim() === ""
+			);
+			if (invalidVariants.length > 0) {
+				return res
+					.status(HTTP_STATUS.BAD_REQUEST)
+					.json(
+						createResponse(
+							false,
+							null,
+							"All variants must have a non-empty message"
+						)
+					);
+			}
+			updateData.variants = variants.map((variant) => ({
+				message: variant.message.trim(),
+			}));
+		}
+
+		// Handle NEW leads only - don't remove existing ones
+		if (newLeads && Array.isArray(newLeads) && newLeads.length > 0) {
+			const processedNewLeads = [
+				...new Set(
+					newLeads.map((lead) =>
+						typeof lead === "string" ? lead.replace("@", "").trim() : lead
+					)
+				),
+			].filter((lead) => lead && lead.length > 0);
+
+			if (processedNewLeads.length > 0) {
+				// Get existing leads to avoid duplicates
+				const existingLeadsSnapshot = await db
+					.collection("leads")
+					.where("campaignId", "==", campaignId)
+					.get();
+
+				const existingUsernames = new Set(
+					existingLeadsSnapshot.docs.map((doc) => doc.data().username)
+				);
+
+				// Filter out leads that already exist
+				const trulyNewLeads = processedNewLeads.filter(
+					(username) => !existingUsernames.has(username)
+				);
+
+				if (trulyNewLeads.length > 0) {
+					// Create new leads
+					await LeadService.createLeadsFromCampaign(campaignId, trulyNewLeads);
+
+					// Update campaign with new total count
+					const newTotalLeads =
+						existingCampaign.totalLeads + trulyNewLeads.length;
+					updateData.totalLeads = newTotalLeads;
+
+					// Update allLeads string by appending new leads
+					const newLeadsString = trulyNewLeads.join("\n") + "\n";
+					updateData.allLeads = existingCampaign.allLeads + newLeadsString;
+				}
+			}
+		}
+
+		// Update campaign
+		await db.collection("campaigns").doc(campaignId).update(updateData);
+
+		// Get updated campaign data
+		const updatedCampaignDoc = await db
+			.collection("campaigns")
+			.doc(campaignId)
+			.get();
+		const updatedCampaignData = updatedCampaignDoc.data();
+
+		res.json(
+			createResponse(
+				true,
+				{
+					id: campaignId,
+					...updatedCampaignData,
+				},
+				"Campaign updated successfully"
+			)
+		);
+	} catch (error) {
+		console.error("Error updating campaign:", error);
+		res
+			.status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+			.json(createResponse(false, null, "Failed to update campaign"));
+	}
+});
+
 module.exports = router;

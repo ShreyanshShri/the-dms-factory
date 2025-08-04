@@ -9,6 +9,8 @@ import Login from "./components/Auth/Login";
 import Register from "./components/Auth/Register";
 import Dashboard from "./components/Dashboard/Dashboard";
 import CreateCampaign from "./components/Campaign/CreateCampaign";
+import CampaignInfo from "./components/Campaign/CampaignInfo";
+import CampaignEdit from "./components/Campaign/CampaignEdit";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
 import Layout from "./components/Layout/Layout";
 import "./styles/globals.css";
@@ -35,6 +37,22 @@ function App() {
 							element={
 								<ProtectedRoute>
 									<CreateCampaign />
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/campaign/:campaignId"
+							element={
+								<ProtectedRoute>
+									<CampaignInfo />
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/campaign/edit/:campaignId"
+							element={
+								<ProtectedRoute>
+									<CampaignEdit />
 								</ProtectedRoute>
 							}
 						/>

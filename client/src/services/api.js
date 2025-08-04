@@ -57,8 +57,13 @@ export const campaignAPI = {
 	createCampaign: async (campaignData) => {
 		return await axiosInstance.post("/campaign/create", campaignData);
 	},
-
 	getCampaigns: async () => {
 		return await axiosInstance.get("/campaign/");
+	},
+	getCampaignById: async (campaignId) => {
+		return await axiosInstance.get(`/campaign/${campaignId}`);
+	},
+	updateCampaign: async (campaignId, campaignData) => {
+		return await axiosInstance.put(`/campaign/${campaignId}`, campaignData);
 	},
 };

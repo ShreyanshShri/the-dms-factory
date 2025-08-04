@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { campaignAPI } from "../../services/api";
 
@@ -186,10 +186,14 @@ const Dashboard = () => {
 									</div>
 
 									<div className="campaign-actions">
-										<button className="action-btn view-btn">
-											View Details
-										</button>
-										<button className="action-btn edit-btn">Edit</button>
+										<Link to={`/campaign/${campaign.id}`}>
+											<button className="action-btn view-btn">
+												View Details
+											</button>
+										</Link>
+										<Link to={`/campaign/edit/${campaign.id}`}>
+											<button className="action-btn edit-btn">Edit</button>
+										</Link>
 										{campaign.status === "ready" && (
 											<button className="action-btn start-btn">Start</button>
 										)}
