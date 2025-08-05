@@ -8,6 +8,11 @@
 	min-height: 100vh;
 }
 
+.campaign-edit-container {
+	max-width: 800px;
+	margin: 0 auto;
+}
+
 .campaign-edit-header {
 	display: flex;
 	align-items: center;
@@ -362,6 +367,7 @@
 	display: flex;
 	justify-content: center;
 	align-items: center;
+	flex-direction: column;
 	min-height: 400px;
 	color: var(--text-secondary);
 }

@@ -76,9 +76,14 @@ const Dashboard = () => {
 					<h1>Dashboard</h1>
 					<p>Welcome back, {user?.name}!</p>
 				</div>
-				<button onClick={handleLogout} className="logout-button">
-					Logout
-				</button>
+				<div>
+					<Link to="/manage-accounts">
+						<button className="create-campaign-btn">Manage Accounts</button>
+					</Link>
+					<button onClick={handleLogout} className="logout-button">
+						Logout
+					</button>
+				</div>
 			</div>
 
 			<div className="dashboard-content">
@@ -194,9 +199,6 @@ const Dashboard = () => {
 										<Link to={`/campaign/edit/${campaign.id}`}>
 											<button className="action-btn edit-btn">Edit</button>
 										</Link>
-										{campaign.status === "ready" && (
-											<button className="action-btn start-btn">Start</button>
-										)}
 									</div>
 								</div>
 							))}

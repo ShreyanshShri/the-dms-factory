@@ -8,11 +8,16 @@ const path = require("path");
 const { setupCors } = require("./middleware/cors");
 const campaignRoutes = require("./routes/campaign");
 const authRoutes = require("./routes/auth");
+const accountRoutes = require("./routes/account");
 const { authenticateToken } = require("./middleware/auth");
+const { createProxyMiddleware } = require("http-proxy-middleware");
 
 const { db } = require("./config/firebase");
 
 const app = express();
+
+// CORS setup
+setupCors(app);
 
 // Security middleware
 app.set("trust proxy", 1);
@@ -20,8 +25,6 @@ app.use(helmet());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// CORS setup
-setupCors(app);
 app.use(cookieParser());
 
 // Rate limiting
@@ -35,6 +38,7 @@ app.use("/api/", limiter);
 // Routes
 app.use("/api/v1/campaign", campaignRoutes);
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/account", accountRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
@@ -80,6 +84,16 @@ app.get("/test-firebase", async (req, res) => {
 	}
 });
 
+if (process.env.NODE_ENV !== "production") {
+	app.use(
+		/^\/(?!api\/).*$/, // This regex excludes paths that start with /api/
+		createProxyMiddleware({
+			target: "http://localhost:3000",
+			changeOrigin: true,
+		})
+	);
+}
+
 // Error handling middleware
 app.use((err, req, res, next) => {
 	console.error(err.stack);
@@ -90,17 +104,12 @@ app.use((err, req, res, next) => {
 	});
 });
 
-// Serve frontend
+// Serve frontend (for testing)
 app.use(express.static(path.join(__dirname, "./client/build")));
 
 app.get("*", (req, res) => {
 	res.sendFile(path.join(__dirname, "./client/build/index.html"));
 });
-
-// 404 handler
-// app.use("*", (req, res) => {
-// 	res.status(404).json({ success: false, message: "Route not found" });
-// });
 
 // Only start server if not in test environment
 let server;

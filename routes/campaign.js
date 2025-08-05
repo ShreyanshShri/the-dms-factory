@@ -259,6 +259,111 @@ router.get("/", async (req, res) => {
 	}
 });
 
+// DELETE /api/v1/campaign/:campaignId - Delete a campaign // done
+router.delete("/:campaignId", async (req, res) => {
+	try {
+		const { campaignId } = req.params;
+
+		const campaignRef = db.collection("campaigns").doc(campaignId);
+		const campaignSnap = await campaignRef.get();
+
+		if (!campaignSnap.exists) {
+			return res
+				.status(HTTP_STATUS.NOT_FOUND)
+				.json(createResponse(false, null, "Campaign not found"));
+		}
+
+		const campaignData = campaignSnap.data();
+
+		// Authorization check
+		if (campaignData.userId !== req.user.uid) {
+			return res
+				.status(HTTP_STATUS.FORBIDDEN)
+				.json(
+					createResponse(
+						false,
+						null,
+						"You are not authorized to delete this campaign"
+					)
+				);
+		}
+
+		// Prevent deleting active campaign
+		if (campaignData.status === "active") {
+			return res
+				.status(HTTP_STATUS.BAD_REQUEST)
+				.json(createResponse(false, null, "Cannot delete an active campaign"));
+		}
+
+		const BATCH_LIMIT = 500;
+		const deleteOps = [];
+		let batch = db.batch();
+		let count = 0;
+
+		// 🔹 1. Delete leads related to this campaign
+		const leadsQuery = db
+			.collection("leads")
+			.where("campaignId", "==", campaignId);
+		const leadsSnap = await leadsQuery.get();
+
+		for (const doc of leadsSnap.docs) {
+			batch.delete(doc.ref);
+			count++;
+			if (count === BATCH_LIMIT) {
+				deleteOps.push(batch.commit());
+				batch = db.batch();
+				count = 0;
+			}
+		}
+
+		// 🔹 2. Update all accounts with currentCampaignId == campaignId
+		const accountsQuery = db
+			.collection("accounts")
+			.where("currentCampaignId", "==", campaignId);
+		const accountsSnap = await accountsQuery.get();
+
+		for (const doc of accountsSnap.docs) {
+			batch.update(doc.ref, { currentCampaignId: null });
+			count++;
+			if (count === BATCH_LIMIT) {
+				deleteOps.push(batch.commit());
+				batch = db.batch();
+				count = 0;
+			}
+		}
+
+		// 🔹 3. Delete the campaign document
+		batch.delete(campaignRef);
+		count++;
+
+		// Final commit if anything left
+		if (count > 0) {
+			deleteOps.push(batch.commit());
+		}
+
+		await Promise.all(deleteOps);
+
+		console.log(
+			`Deleted campaign ${campaignId}, ${leadsSnap.size} leads, and updated ${accountsSnap.size} accounts`
+		);
+
+		res
+			.status(HTTP_STATUS.OK)
+			.json(
+				createResponse(
+					true,
+					null,
+					"Campaign, leads, and account references deleted successfully"
+				)
+			);
+	} catch (error) {
+		console.error("Error deleting campaign:", error);
+		res
+			.status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+			.json(createResponse(false, null, "Failed to delete campaign"));
+	}
+});
+
 // POST /api/v1/campaign/start - Start campaign // done
 router.post("/start", async (req, res) => {
 	try {
@@ -344,6 +449,65 @@ router.post("/start", async (req, res) => {
 	}
 });
 
+// PATCH /api/v1/campaign/start-all
+router.patch("/start-all", async (req, res) => {
+	const { campaignId } = req.query;
+	if (campaignId === undefined) {
+		return res
+			.status(400)
+			.json({ success: false, message: "Missing campaignId" });
+	}
+	try {
+		// Check campaign exists & user owns it
+		const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
+		if (!campaignDoc.exists || campaignDoc.data().userId !== req.user.uid) {
+			return res.status(404).json({
+				success: false,
+				message: "Campaign not found or access denied",
+			});
+		}
+
+		// Find all accounts linked to this campaign
+		const accountsSnap = await db
+			.collection("accounts")
+			.where("currentCampaignId", "==", campaignId)
+			.get();
+
+		// Batch update all accounts: status "active" and update lastUpdated, assign leads
+		const batch = db.batch();
+		for (const doc of accountsSnap.docs) {
+			batch.update(doc.ref, {
+				status: "active",
+				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+			});
+			// Optionally (sync), assign leads if you want per-account, e.g.:
+			// await LeadService.assignLeadsToAccount(campaignId, doc.id, 24);
+		}
+		// Update campaign status as well
+		batch.update(db.collection("campaigns").doc(campaignId), {
+			status: "active",
+			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+		});
+		await batch.commit();
+
+		// Optionally, assign leads in parallel for all accounts (async, not in Firestore batch)
+		await Promise.allSettled(
+			accountsSnap.docs.map((doc) =>
+				LeadService.assignLeadsToAccount(campaignId, doc.id, 24)
+			)
+		);
+
+		res.json({
+			success: true,
+			message: "Campaign and all accounts started",
+			accounts: accountsSnap.size,
+		});
+	} catch (e) {
+		console.error("start-all error:", e);
+		res.status(500).json({ success: false, message: "Bulk start failed" });
+	}
+});
+
 // PATCH /api/v1/campaign/pause - Pause campaign
 router.patch("/pause", async (req, res) => {
 	try {
@@ -376,6 +540,62 @@ router.patch("/pause", async (req, res) => {
 		res
 			.status(500)
 			.json({ success: false, message: "Failed to pause campaign" });
+	}
+});
+
+// PATCH /api/v1/campaign/:campaignId/pause-all
+router.patch("/pause-all", async (req, res) => {
+	const { campaignId } = req.query;
+	if (campaignId === undefined) {
+		return res
+			.status(400)
+			.json({ success: false, message: "Missing campaignId" });
+	}
+	try {
+		// Check campaign exists & user owns it
+		const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
+		if (!campaignDoc.exists || campaignDoc.data().userId !== req.user.uid) {
+			return res.status(404).json({
+				success: false,
+				message: "Campaign not found or access denied",
+			});
+		}
+
+		// Find all accounts linked to this campaign
+		const accountsSnap = await db
+			.collection("accounts")
+			.where("currentCampaignId", "==", campaignId)
+			.get();
+
+		// Batch update all accounts: status "paused" and update lastUpdated
+		const batch = db.batch();
+		for (const doc of accountsSnap.docs) {
+			batch.update(doc.ref, {
+				status: "paused",
+				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+			});
+		}
+		batch.update(db.collection("campaigns").doc(campaignId), {
+			status: "paused",
+			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+		});
+		await batch.commit();
+
+		// Unassign leads for all accounts (async, not in Firestore batch)
+		await Promise.allSettled(
+			accountsSnap.docs.map((doc) =>
+				LeadService.unAssignLeads(campaignId, doc.id, 24)
+			)
+		);
+
+		res.json({
+			success: true,
+			message: "Campaign and all accounts paused",
+			accounts: accountsSnap.size,
+		});
+	} catch (e) {
+		console.error("pause-all error:", e);
+		res.status(500).json({ success: false, message: "Bulk pause failed" });
 	}
 });
 

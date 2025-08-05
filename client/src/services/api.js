@@ -1,8 +1,10 @@
 import axios from "axios";
 
 // const API_BASE_URL = "https://the-dms-factory.onrender.com/api/v1";
-const API_BASE_URL = "/api/v1";
-// const API_BASE_URL = "http://localhost:5000/api/v1"; // for testing
+const API_BASE_URL =
+	process.env.NODE_ENV === "production"
+		? "/api/v1"
+		: "http://localhost:5000/api/v1";
 
 // Create axios instance with default config
 const axiosInstance = axios.create({
@@ -66,4 +68,41 @@ export const campaignAPI = {
 	updateCampaign: async (campaignId, campaignData) => {
 		return await axiosInstance.put(`/campaign/${campaignId}`, campaignData);
 	},
+	deleteCampaign: async (campaignId) => {
+		return await axiosInstance.delete(`/campaign/${campaignId}`);
+	},
+
+	startCampaign: async (campaignID, accountId, displayName) => {
+		return await axiosInstance.post(
+			`/campaign/start?campaignID=${campaignID}`,
+			{
+				displayName,
+				widgetId: accountId,
+			}
+		);
+	},
+
+	startAllAccounts: async (campaignID) => {
+		return await axiosInstance.patch(
+			`/campaign/start-all?campaignId=${campaignID}`
+		);
+	},
+
+	pauseCampaign: async (campaignID, accountId) => {
+		await axiosInstance.patch(
+			`/campaign/pause?campaignID=${campaignID}&accountId=${accountId}`
+		);
+	},
+
+	pauseAllAccounts: async (campaignID) => {
+		return await axiosInstance.patch(
+			`/campaign/pause-all?campaignId=${campaignID}`
+		);
+	},
+};
+
+export const accountAPI = {
+	getOverview: async () => await axiosInstance.get("/account/overview"),
+	assign: async (accountId, newCampaignId) =>
+		await axiosInstance.patch("/account/assign", { accountId, newCampaignId }),
 };

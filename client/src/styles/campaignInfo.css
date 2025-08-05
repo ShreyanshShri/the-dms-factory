@@ -80,6 +80,17 @@
 	border-color: var(--accent-primary);
 }
 
+.campaign-action-btn.delete {
+	background: var(--bg-tertiary);
+	color: var(--text-primary);
+	border-color: var(--border-color);
+}
+
+.campaign-action-btn.delete:hover {
+	background: var(--error-color);
+	border-color: var(--error-color);
+}
+
 .campaign-action-btn.start {
 	background: var(--success-color);
 	color: white;
@@ -307,6 +318,7 @@
 	display: flex;
 	justify-content: center;
 	align-items: center;
+	flex-direction: column;
 	min-height: 400px;
 	color: var(--text-secondary);
 }

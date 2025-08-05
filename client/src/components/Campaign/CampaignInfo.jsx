@@ -1,40 +1,43 @@
-import React, { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, Link } from "react-router-dom";
 import { campaignAPI } from "../../services/api";
 import "../../styles/campaignInfo.css";
 
 const CampaignInfo = () => {
 	const { campaignId } = useParams();
-	const navigate = useNavigate();
 	const [campaign, setCampaign] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 
 	useEffect(() => {
+		window.scrollTo({ top: 0 });
+	});
+
+	useEffect(() => {
+		const fetchCampaignData = async () => {
+			try {
+				setLoading(true);
+				const response = await campaignAPI.getCampaignById(campaignId);
+
+				if (response.success) {
+					setCampaign(response.data);
+				} else {
+					setError(response.message || "Failed to fetch campaign data");
+				}
+			} catch (error) {
+				console.error("Error fetching campaign:", error);
+				setError(
+					error.response?.data?.message || "Failed to fetch campaign data"
+				);
+			} finally {
+				setLoading(false);
+			}
+		};
+
 		if (campaignId) {
 			fetchCampaignData();
 		}
 	}, [campaignId]);
-
-	const fetchCampaignData = async () => {
-		try {
-			setLoading(true);
-			const response = await campaignAPI.getCampaignById(campaignId);
-
-			if (response.success) {
-				setCampaign(response.data);
-			} else {
-				setError(response.message || "Failed to fetch campaign data");
-			}
-		} catch (error) {
-			console.error("Error fetching campaign:", error);
-			setError(
-				error.response?.data?.message || "Failed to fetch campaign data"
-			);
-		} finally {
-			setLoading(false);
-		}
-	};
 
 	const formatDate = (timestamp) => {
 		if (!timestamp) return "N/A";
@@ -55,6 +58,24 @@ const CampaignInfo = () => {
 	const formatMessageLimits = (messageLimits) => {
 		if (!messageLimits) return "Not set";
 		return `${messageLimits.min} - ${messageLimits.max} per day`;
+	};
+
+	const deleteCampaign = async () => {
+		try {
+			const confirmed = window.confirm(
+				"Are you sure you want to delete this campaign? This action cannot be undone."
+			);
+
+			if (!confirmed) return;
+			setLoading(true);
+			await campaignAPI.deleteCampaign(campaignId);
+			setLoading(false);
+			window.location.href = "/dashboard";
+		} catch (error) {
+			setLoading(false);
+			alert("Failed to delete campaign. Please try again.");
+			console.error("Error deleting campaign:", error);
+		}
 	};
 
 	if (loading) {
@@ -102,11 +123,23 @@ const CampaignInfo = () => {
 					>
 						Edit Campaign
 					</Link>
-					{campaign.status === "ready" && (
-						<button className="campaign-action-btn start">
+					<button
+						className="campaign-action-btn delete"
+						onClick={() => deleteCampaign(campaignId)}
+					>
+						{loading ? "Deleting..." : "Delete Campaign"}
+					</button>
+
+					{/* {campaign.status === "ready" || campaign.status === "paused" && (
+						<button className="campaign-action-btn start" onClick={() => { startCampaign(campaignId) }}>
 							Start Campaign
 						</button>
 					)}
+					{campaign.status === "active" && (
+						<button className="campaign-action-btn start" onClick={() => { pauseCampaign(campaignId) }}>
+							Pause Campaign
+						</button>
+					)} */}
 				</div>
 			</div>
 

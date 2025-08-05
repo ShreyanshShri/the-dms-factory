@@ -20,7 +20,7 @@ const Login = () => {
 
 	useEffect(() => {
 		clearError();
-	}, []);
+	});
 
 	const handleChange = (e) => {
 		const { name, value } = e.target;

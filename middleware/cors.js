@@ -1,16 +1,28 @@
 const cors = require("cors");
 
 const setupCors = (app) => {
-	const allowedOrigins = [
-		process.env.EXTENSION_URL ||
-			"chrome-extension://onoibopfcnnjlfiofjbpcjbmfeioaagm",
-		"chrome-extension://onoibopfcnnjlfiofjbpcjbmfeioaagm",
-		"https://app.colddmspro.com",
-		"https://colddmspro.com",
-		"https://running.colddmspro.com",
-		"https://the-dms-factory.onrender.com",
-		"http://localhost:5000",
-	];
+	const allowedOrigins =
+		process.env.NODE_ENV === "production"
+			? [
+					process.env.EXTENSION_URL ||
+						"chrome-extension://onoibopfcnnjlfiofjbpcjbmfeioaagm",
+					"chrome-extension://onoibopfcnnjlfiofjbpcjbmfeioaagm",
+					"https://app.colddmspro.com",
+					"https://colddmspro.com",
+					"https://running.colddmspro.com",
+					"https://the-dms-factory.onrender.com",
+			  ]
+			: [
+					process.env.EXTENSION_URL ||
+						"chrome-extension://onoibopfcnnjlfiofjbpcjbmfeioaagm",
+					"chrome-extension://onoibopfcnnjlfiofjbpcjbmfeioaagm",
+					"https://app.colddmspro.com",
+					"https://colddmspro.com",
+					"https://running.colddmspro.com",
+					"https://the-dms-factory.onrender.com",
+					"http://localhost:3000",
+					"http://localhost:5000", // for testing
+			  ];
 
 	const corsOptions = {
 		origin: function (origin, callback) {
