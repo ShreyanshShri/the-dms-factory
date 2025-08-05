@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
@@ -8,19 +8,22 @@ const Login = () => {
 		password: "",
 	});
 	const [isLoading, setIsLoading] = useState(false);
+	const hasNavigatedRef = useRef(false);
 
 	const { login, error, clearError, isAuthenticated } = useAuth();
 	const navigate = useNavigate();
 
 	useEffect(() => {
-		if (isAuthenticated) {
+		if (isAuthenticated && !hasNavigatedRef.current) {
+			hasNavigatedRef.current = true;
 			navigate("/dashboard");
 		}
 	}, [isAuthenticated, navigate]);
 
 	useEffect(() => {
 		clearError();
-	});
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 
 	const handleChange = (e) => {
 		const { name, value } = e.target;

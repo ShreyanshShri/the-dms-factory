@@ -13,14 +13,6 @@ const ManageAccounts = () => {
 	const [tab, setTab] = useState("instagram");
 	const [updatingCampaignStatus, setUpdatingCampaignStatus] = useState(false);
 
-	const toMillis = (ts) => {
-		if (!ts) return 0;
-		if (typeof ts === "number") return ts;
-		if (ts.toMillis) return ts.toMillis(); // Firestore Timestamp object
-		if (typeof ts._seconds === "number") return ts._seconds * 1000;
-		return 0;
-	};
-
 	//   derived structure
 	const { instaCols, twitterCols } = useMemo(() => {
 		const instagram = [];

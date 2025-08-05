@@ -1,4 +1,10 @@
-import { createContext, useContext, useReducer, useEffect } from "react";
+import {
+	createContext,
+	useContext,
+	useReducer,
+	useEffect,
+	useCallback,
+} from "react";
 import { authAPI } from "../services/api";
 
 const AuthContext = createContext();
@@ -97,9 +103,9 @@ export const AuthProvider = ({ children }) => {
 		}
 	};
 
-	const clearError = () => {
+	const clearError = useCallback(() => {
 		dispatch({ type: "CLEAR_ERROR" });
-	};
+	}, []);
 
 	useEffect(() => {
 		// Check if user is already authenticated on app load
