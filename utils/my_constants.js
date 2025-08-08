@@ -72,7 +72,7 @@ const RATE_LIMITS = {
 const WORKING_HOURS = {
 	DEFAULT_START: 0,
 	DEFAULT_END: 24,
-	TIMEZONE: "America/New_York",
+	TIMEZONE: "America/Los_Angeles",
 };
 
 // HTTP Status Codes

@@ -652,7 +652,7 @@ router.get("/account-status", async (req, res) => {
 // GET /api/v1/campaign/campaign-status - Check campaign status // done
 router.get("/campaign-status", async (req, res) => {
 	try {
-		const { campaignID, timezone } = req.query;
+		const { campaignID } = req.query;
 
 		if (!campaignID) {
 			return res
@@ -672,8 +672,7 @@ router.get("/campaign-status", async (req, res) => {
 
 		// Check working hours
 		const withinWorkingHours = WorkingHoursService.isWithinWorkingHours(
-			campaignData.workingHours || { start: 0, end: 24 },
-			timezone || "America/New_York"
+			campaignData.workingHours || { start: 0, end: 24 }
 		);
 
 		res.json({
@@ -703,7 +702,7 @@ router.get("/campaign-status", async (req, res) => {
 // GET /api/v1/campaign/fetch-leads - Get leads for processing // done
 router.get("/fetch-leads", async (req, res) => {
 	try {
-		const { campaignID, accountId, timezone } = req.query;
+		const { campaignID, accountId } = req.query;
 
 		if (!campaignID || !accountId) {
 			return res.status(400).json({
@@ -724,8 +723,7 @@ router.get("/fetch-leads", async (req, res) => {
 
 		// Check working hours
 		const withinWorkingHours = WorkingHoursService.isWithinWorkingHours(
-			campaignData.workingHours || { start: 0, end: 24 },
-			timezone || "America/New_York"
+			campaignData.workingHours || { start: 0, end: 24 }
 		);
 		if (!withinWorkingHours) {
 			return res.status(400).json({

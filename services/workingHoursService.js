@@ -1,11 +1,8 @@
 const moment = require("moment-timezone");
 
 class WorkingHoursService {
-	static isWithinWorkingHours(
-		workingHours = { start: 0, end: 24 },
-		timezone = "America/New_York"
-	) {
-		const now = moment().tz(timezone);
+	static isWithinWorkingHours(workingHours = { start: 0, end: 24 }) {
+		const now = moment().tz("America/Los_Angeles");
 		const currentHour = now.hour();
 
 		return currentHour >= workingHours.start && currentHour < workingHours.end;
