@@ -51,6 +51,10 @@ class LeadService {
 
 			await batch.commit();
 
+			await db.collection("accounts").doc(accountId).update({
+				pendingLeadsCount: leadsSnapshot.size,
+			});
+
 			console.log(
 				`Assigned ${leadsSnapshot.size} leads to account ${accountId}`
 			);
@@ -93,6 +97,10 @@ class LeadService {
 			});
 
 			await batch.commit();
+
+			await db.collection("accounts").doc(accountId).update({
+				pendingLeadsCount: 0,
+			});
 
 			console.log(`Unassigned ${leadsSnapshot.size} leads from ${accountId}`);
 			return leadsSnapshot.size;

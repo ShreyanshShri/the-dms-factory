@@ -165,7 +165,11 @@ const ManageAccounts = () => {
 
 			const updatedAccounts = col.accounts.map((acc) =>
 				acc.id === accountId
-					? { ...acc, status: isActive ? "paused" : "active" }
+					? {
+							...acc,
+							status: isActive ? "paused" : "active",
+							pendingLeadsCount: isActive ? 0 : acc.pendingLeadsCount,
+					  }
 					: acc
 			);
 
@@ -236,6 +240,7 @@ const ManageAccounts = () => {
 			const updatedAccounts = col.accounts.map((acc) => ({
 				...acc,
 				status: newStatus,
+				pendingLeadsCount: action === "start-all" ? acc.pendingLeadsCount : 0,
 			}));
 
 			return {
@@ -293,12 +298,14 @@ const ManageAccounts = () => {
 				<div className="campaign-column-actions">
 					{!col.id.startsWith("_unassigned") && (
 						<>
+							{/* {col.status !== "all-active" && ( */}
 							<button
 								className="start-all-button"
 								onClick={() => toggleAllAccounts(col.id, "start-all")}
 							>
 								Start All
 							</button>
+							{/* )} */}
 							{col.status !== "paused" && (
 								<button
 									className="pause-all-button"

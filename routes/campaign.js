@@ -394,17 +394,6 @@ router.post("/start", async (req, res) => {
 		// Assign leads to this account
 		await LeadService.assignLeadsToAccount(campaignID, accountId, 24);
 
-		// Get pending leads count
-		const leadsSnapshot = await db
-			.collection("leads")
-			.where("assignedAccount", "==", widgetId)
-			.where("status", "==", "ready")
-			.get();
-
-		await db.collection("accounts").doc(accountId).update({
-			pendingLeadsCount: leadsSnapshot.size,
-		});
-
 		const updatedUser = await db.collection("accounts").doc(accountId).get();
 		const updatedUserData = updatedUser.data();
 
