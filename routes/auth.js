@@ -84,7 +84,9 @@ router.post("/register", async (req, res) => {
 			name: name.trim(),
 			email: email.toLowerCase().trim(),
 			password: hashedPassword,
-			isSubscribed: true,
+			role: "user",
+			isSubscribed: false,
+			subscriptionStatus: "pending",
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		};

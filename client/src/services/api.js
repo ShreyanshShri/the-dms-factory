@@ -106,3 +106,22 @@ export const accountAPI = {
 	assign: async (accountId, newCampaignId) =>
 		await axiosInstance.patch("/account/assign", { accountId, newCampaignId }),
 };
+
+export const adminAPI = {
+	// Get all pending users awaiting approval
+	getPendingUsers: async () => {
+		return await axiosInstance.get("/admin/pending-users");
+	},
+
+	// Approve a user's subscription
+	approveUser: async (uid) => {
+		return await axiosInstance.post(`/admin/approve-user/${uid}`);
+	},
+
+	// Get all users with pagination and filtering
+	getAllUsers: async (page = 1, limit = 10, status = null) => {
+		const params = new URLSearchParams({ page, limit });
+		if (status) params.append("status", status);
+		return await axiosInstance.get(`/admin/users?${params}`);
+	},
+};

@@ -69,6 +69,22 @@ const Dashboard = () => {
 		);
 	}
 
+	if (!user.isSubscribed) {
+		return (
+			<div className="admin-dashboard">
+				<div className="access-denied">
+					<h2>Access Denied</h2>
+					<p>You dont have permission to access this page.</p>
+					<p>Please contact the owner.</p>
+					<br />
+					<button onClick={handleLogout} className="logout-button">
+						Logout
+					</button>
+				</div>
+			</div>
+		);
+	}
+
 	return (
 		<div className="dashboard-container">
 			<div className="dashboard-header">

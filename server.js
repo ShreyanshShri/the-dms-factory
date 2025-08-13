@@ -9,6 +9,7 @@ const { setupCors } = require("./middleware/cors");
 const campaignRoutes = require("./routes/campaign");
 const authRoutes = require("./routes/auth");
 const accountRoutes = require("./routes/account");
+const adminRoutes = require("./routes/admin");
 const { authenticateToken } = require("./middleware/auth");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
@@ -39,6 +40,7 @@ app.use("/api/", limiter);
 app.use("/api/v1/campaign", campaignRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/account", accountRoutes);
+app.use("/api/v1/admin", adminRoutes);
 
 // Health check
 app.get("/health", (req, res) => {

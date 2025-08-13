@@ -54,13 +54,21 @@ const authReducer = (state, action) => {
 export const AuthProvider = ({ children }) => {
 	const [state, dispatch] = useReducer(authReducer, initialState);
 
+	// Add this to your existing AuthContext.js
 	const login = async (email, password) => {
 		try {
 			dispatch({ type: "SET_LOADING", payload: true });
 			const response = await authAPI.login(email, password);
-
 			if (response.success) {
 				dispatch({ type: "LOGIN_SUCCESS", payload: response.data });
+
+				// Redirect based on user role
+				if (response.data.role === "admin") {
+					window.location.href = "/admin";
+				} else {
+					window.location.href = "/dashboard";
+				}
+
 				return { success: true };
 			} else {
 				dispatch({ type: "LOGIN_ERROR", payload: response.message });

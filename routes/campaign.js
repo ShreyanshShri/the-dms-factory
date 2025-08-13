@@ -3,32 +3,14 @@ const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
 const { db, admin } = require("../config/firebase");
 
-// Import models
-const User = require("../models/User");
-const Campaign = require("../models/Campaign");
-const Account = require("../models/Account");
-const Lead = require("../models/Lead");
-const Analytics = require("../models/Analytics");
-
 // Import services
 const LeadService = require("../services/leadService");
 const RateService = require("../services/rateService");
 const WorkingHoursService = require("../services/workingHoursService");
 
 // Import utils
-const {
-	generateWidgetId,
-	createResponse,
-	validateRequiredFields,
-} = require("../utils/helpers");
-const {
-	CAMPAIGN_STATUS,
-	ACCOUNT_STATUS,
-	LEAD_STATUS,
-	ERROR_MESSAGES,
-	SUCCESS_MESSAGES,
-	HTTP_STATUS,
-} = require("../utils/my_constants");
+const { createResponse, validateRequiredFields } = require("../utils/helpers");
+const { HTTP_STATUS } = require("../utils/my_constants");
 
 // Apply authentication to all routes // done
 router.use(authenticateToken);
@@ -248,7 +230,7 @@ router.get("/", async (req, res) => {
 
 		res.json({
 			name: req.user.name || "User",
-			isSubscribed: req.user.isSubscribed || true,
+			isSubscribed: req.user.isSubscribed,
 			campaigns: campaigns,
 		});
 	} catch (error) {
@@ -726,11 +708,26 @@ router.get("/fetch-leads", async (req, res) => {
 			campaignData.workingHours || { start: 0, end: 24 }
 		);
 		if (!withinWorkingHours) {
-			return res.status(400).json({
+			return res.status(200).json({
 				success: true,
 				leads: [],
 				batchSize: 0,
 				message: "Campaign is not within working hours",
+			});
+		}
+
+		const rateInfo = await RateService.getRateLimitInfo(
+			accountId,
+			campaignData.workingHours || { start: 0, end: 24 },
+			campaignData.messageLimits || { min: 35, max: 41 }
+		);
+		// Check if daily limit reached
+		if (rateInfo.remainingMessages <= 0) {
+			return res.json({
+				success: true,
+				leads: [],
+				batchSize: 0,
+				message: `Daily message limit reached (${rateInfo.messageLimitsMax}/${rateInfo.messageLimitsMax} sent)`,
 			});
 		}
 
@@ -765,7 +762,6 @@ router.get("/fetch-leads", async (req, res) => {
 			}
 		}
 
-		const rateInfo = await RateService.getRateLimitInfo(accountId);
 		const workingHoursInfo = WorkingHoursService.getWorkingHoursProgress();
 
 		res.json({
@@ -894,6 +890,8 @@ router.post("/analytics", async (req, res) => {
 			platform,
 		} = req.body;
 
+		console.log("Received analytics data:", req.body);
+
 		if (!campaignID || !accountID) {
 			return res.status(400).json({
 				success: false,
@@ -913,19 +911,24 @@ router.post("/analytics", async (req, res) => {
 			createdAt: Date.now(),
 		};
 
+		console.log("Adding analytics");
+
 		await db.collection("analytics").add(analyticsData);
 
 		// set lead status from sending to sent
-		if (status === "sent") {
-			await db.collection("leads").doc(leadID).update({
-				status: "sent",
-				sent: true,
+		await db
+			.collection("leads")
+			.doc(leadID)
+			.update({
+				status: status,
+				sent: status === "initialdmsent" || status === "followup",
 				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 			});
-		}
 
 		// Update rate limiting info
-		await RateService.recordMessageSent(accountID);
+		if (status === "initialdmsent" || status === "followup") {
+			await RateService.recordMessageSent(accountID, campaignID);
+		}
 
 		res.json({ success: true });
 	} catch (error) {

@@ -7,9 +7,11 @@ class User {
 		this.name = data.name;
 		this.email = data.email;
 		this.createdAt = data.createdAt || Date.now();
+		this.role = data.role || "user";
 
 		// mutables
-		this.isSubscribed = data.isSubscribed || true;
+		this.isSubscribed = data.isSubscribed || false;
+		this.subscriptionStatus = data.subscriptionStatus || "pending";
 		this.updatedAt = data.updatedAt || Date.now();
 	}
 
