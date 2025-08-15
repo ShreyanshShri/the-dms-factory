@@ -4,17 +4,32 @@ const { v4: uuidv4 } = require("uuid");
 class LeadService {
 	static async assignLeadsToAccount(campaignID, accountId, count = 24) {
 		try {
+			// Find account by widgetId field
+			const accountSnapshot = await db
+				.collection("accounts")
+				.where("widgetId", "==", accountId)
+				.limit(1)
+				.get();
+
+			if (accountSnapshot.empty) {
+				console.error(`Account not found: ${accountId}`);
+				return 0;
+			}
+
+			const actualAccountId = accountSnapshot.docs[0].id;
+
 			// Check if leads are already assigned to the account
 			const assignedLeadsSnapshot = await db
 				.collection("leads")
 				.where("campaignId", "==", campaignID)
-				.where("assignedAccount", "==", accountId)
+				.where("assignedAccount", "==", actualAccountId)
 				.where("status", "==", "ready")
 				.limit(count)
 				.get();
+
 			if (assignedLeadsSnapshot.size > 0) {
 				console.log(
-					`${assignedLeadsSnapshot.size} Leads already assigned to account ${accountId}`
+					`${assignedLeadsSnapshot.size} Leads already assigned to account ${actualAccountId}`
 				);
 				return assignedLeadsSnapshot.size;
 			}
@@ -34,16 +49,14 @@ class LeadService {
 			leadsSnapshot.forEach((doc) => {
 				const data = doc.data();
 				if (data.assignedAt === null) {
-					// if lead is assigned for the first time
 					batch.update(doc.ref, {
-						assignedAccount: accountId,
+						assignedAccount: actualAccountId,
 						lastReassignedAt: assignedAt,
-						assignedAt: assignedAt, // update assignedAt
+						assignedAt: assignedAt,
 					});
 				} else {
-					// else dont update assignedAt
 					batch.update(doc.ref, {
-						assignedAccount: accountId,
+						assignedAccount: actualAccountId,
 						lastReassignedAt: assignedAt,
 					});
 				}
@@ -51,12 +64,12 @@ class LeadService {
 
 			await batch.commit();
 
-			await db.collection("accounts").doc(accountId).update({
+			await db.collection("accounts").doc(actualAccountId).update({
 				pendingLeadsCount: leadsSnapshot.size,
 			});
 
 			console.log(
-				`Assigned ${leadsSnapshot.size} leads to account ${accountId}`
+				`Assigned ${leadsSnapshot.size} leads to account ${actualAccountId}`
 			);
 			return leadsSnapshot.size;
 		} catch (error) {
@@ -67,25 +80,33 @@ class LeadService {
 
 	static async unAssignLeads(campaignID, accountId, count = 24) {
 		try {
-			// Get unassigned leads for this campaign
-			// .where("assignedAccount", "==", "")
-			console.log("testing: from unassign leads", campaignID, accountId);
+			// Find account by widgetId field
+			const accountSnapshot = await db
+				.collection("accounts")
+				.where("widgetId", "==", accountId)
+				.limit(1)
+				.get();
+
+			if (accountSnapshot.empty) {
+				console.error(`Account not found: ${accountId}`);
+				return 0;
+			}
+
+			const actualAccountId = accountSnapshot.docs[0].id;
+
+			console.log("testing: from unassign leads", campaignID, actualAccountId);
+
 			const leadsSnapshot = await db
 				.collection("leads")
 				.where("campaignId", "==", campaignID)
-				.where("assignedAccount", "==", accountId)
+				.where("assignedAccount", "==", actualAccountId)
 				.where("status", "==", "ready")
 				.get();
 
 			const batch = db.batch();
 			const assignedAt = admin.firestore.FieldValue.serverTimestamp();
 
-			// this.lastReassignedAt = data.lastReassignedAt || null;
-			// this.previousAccount = data.previousAccount || null;
-			// this.reassignmentCount = data.reassignmentCount || 0;
-
 			leadsSnapshot.forEach((doc) => {
-				// else dont update assignedAt
 				const data = doc.data();
 				batch.update(doc.ref, {
 					assignedAccount: "",
@@ -98,11 +119,13 @@ class LeadService {
 
 			await batch.commit();
 
-			await db.collection("accounts").doc(accountId).update({
+			await db.collection("accounts").doc(actualAccountId).update({
 				pendingLeadsCount: 0,
 			});
 
-			console.log(`Unassigned ${leadsSnapshot.size} leads from ${accountId}`);
+			console.log(
+				`Unassigned ${leadsSnapshot.size} leads from ${actualAccountId}`
+			);
 			return leadsSnapshot.size;
 		} catch (error) {
 			console.error("Error unassigning leads:", error);
@@ -112,10 +135,24 @@ class LeadService {
 
 	static async fetchLeadsForProcessing(campaignID, accountId, batchSize = 8) {
 		try {
+			// Find account by widgetId field
+			const accountSnapshot = await db
+				.collection("accounts")
+				.where("widgetId", "==", accountId)
+				.limit(1)
+				.get();
+
+			if (accountSnapshot.empty) {
+				console.error(`Account not found: ${accountId}`);
+				return [];
+			}
+
+			const actualAccountId = accountSnapshot.docs[0].id;
+
 			const leadsSnapshot = await db
 				.collection("leads")
 				.where("campaignId", "==", campaignID)
-				.where("assignedAccount", "==", accountId)
+				.where("assignedAccount", "==", actualAccountId)
 				.where("status", "==", "ready")
 				.limit(batchSize)
 				.get();
@@ -145,15 +182,13 @@ class LeadService {
 
 	static async createLeadsFromCampaign(campaignID, leadsList) {
 		try {
-			const batchSize = 500; // Firestore batch limit
+			const batchSize = 500;
 			const batches = [];
 
-			// Split leads into batches
 			for (let i = 0; i < leadsList.length; i += batchSize) {
 				batches.push(leadsList.slice(i, i + batchSize));
 			}
 
-			// Process each batch
 			for (const batchLeads of batches) {
 				const batch = db.batch();
 				const now = Date.now();

@@ -96,32 +96,43 @@ router.patch("/assign", async (req, res) => {
 		return res.status(400).json(createResponse(false, null, "Missing params"));
 
 	try {
-		// verify account belongs to user
-		const accDoc = await db.collection("accounts").doc(accountId).get();
-		if (!accDoc.exists || accDoc.data().userId !== req.user.uid)
-			return res.status(403).json(createResponse(false, null, "Access denied"));
+		// Find account by widgetId field, not document ID
+		const accountSnapshot = await db
+			.collection("accounts")
+			.where("widgetId", "==", accountId)
+			.limit(1)
+			.get();
 
-		// verify platform match
+		if (accountSnapshot.empty) {
+			return res
+				.status(403)
+				.json(createResponse(false, null, "Account not found"));
+		}
+
+		const accountDoc = accountSnapshot.docs[0];
+		const accountData = accountDoc.data();
+
+		// Verify account belongs to user
+		if (accountData.userId !== req.user.uid) {
+			return res.status(403).json(createResponse(false, null, "Access denied"));
+		}
+
+		// Verify platform match if assigning to a campaign
 		const newCampaign = newCampaignId
 			? await db.collection("campaigns").doc(newCampaignId).get()
 			: null;
 
-		if (newCampaign && newCampaign.data().platform !== accDoc.data().platform) {
+		if (newCampaign && newCampaign.data().platform !== accountData.platform) {
 			return res
 				.status(400)
 				.json(createResponse(false, null, "Platform mismatch: cannot assign"));
 		}
 
-		// update account doc
-		await db.collection("accounts").doc(accountId).update({
+		// Update using the actual document ID
+		await accountDoc.ref.update({
 			currentCampaignId: newCampaignId,
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 		});
-
-		// OPTIONAL – re-assign leads to the account if campaign active
-		// if (newCampaignId && newCampaignId !== "_unassigned") {
-		// 	await LeadService.assignLeadsToAccount(newCampaignId, accountId, 24);
-		// }
 
 		res.json(createResponse(true, null, "Account reassigned"));
 	} catch (e) {

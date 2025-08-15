@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
+const { subscribed } = require("../middleware/subscribed");
 const { db, admin } = require("../config/firebase");
 
 // Import services
@@ -12,10 +13,10 @@ const WorkingHoursService = require("../services/workingHoursService");
 const { createResponse, validateRequiredFields } = require("../utils/helpers");
 const { HTTP_STATUS } = require("../utils/my_constants");
 
-// Apply authentication to all routes // done
 router.use(authenticateToken);
+router.use(subscribed);
 
-// POST /api/v1/campaign/create - Create new campaign // done
+// POST /api/v1/campaign/create - Create new campaign
 router.post("/create", async (req, res) => {
 	try {
 		const {
@@ -32,7 +33,6 @@ router.post("/create", async (req, res) => {
 			tag,
 		} = req.body;
 
-		// Validate required fields
 		const missingFields = validateRequiredFields(req.body, [
 			"name",
 			"platform",
@@ -52,7 +52,6 @@ router.post("/create", async (req, res) => {
 				);
 		}
 
-		// Validate platform
 		if (!["instagram", "twitter"].includes(platform)) {
 			return res
 				.status(HTTP_STATUS.BAD_REQUEST)
@@ -65,14 +64,12 @@ router.post("/create", async (req, res) => {
 				);
 		}
 
-		// Validate leads array
 		if (!Array.isArray(leads) || leads.length === 0) {
 			return res
 				.status(HTTP_STATUS.BAD_REQUEST)
 				.json(createResponse(false, null, "Leads must be a non-empty array"));
 		}
 
-		// Validate variants array
 		if (!Array.isArray(variants) || variants.length === 0) {
 			return res
 				.status(HTTP_STATUS.BAD_REQUEST)
@@ -85,7 +82,6 @@ router.post("/create", async (req, res) => {
 				);
 		}
 
-		// Validate each variant has a message
 		const invalidVariants = variants.filter(
 			(variant) => !variant.message || variant.message.trim() === ""
 		);
@@ -101,7 +97,6 @@ router.post("/create", async (req, res) => {
 				);
 		}
 
-		// Process leads - remove duplicates and clean usernames
 		const processedLeads = [
 			...new Set(
 				leads.map((lead) =>
@@ -116,10 +111,8 @@ router.post("/create", async (req, res) => {
 				.json(createResponse(false, null, "No valid leads provided"));
 		}
 
-		// Create campaign document
 		const campaignRef = db.collection("campaigns").doc();
 		const campaignId = campaignRef.id;
-
 		const campaignData = {
 			userId: req.user.uid,
 			name: name.trim(),
@@ -143,25 +136,19 @@ router.post("/create", async (req, res) => {
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 		};
 
-		// Use transaction to create campaign and leads atomically
 		await db.runTransaction(async (transaction) => {
-			// Create campaign
 			transaction.set(campaignRef, campaignData);
 
-			// Create leads in batches (Firestore has 500 operation limit per transaction)
-			const batchSize = 400; // Leave room for campaign creation
+			const batchSize = 400;
 			const leadBatches = [];
-
 			for (let i = 0; i < processedLeads.length; i += batchSize) {
 				leadBatches.push(processedLeads.slice(i, i + batchSize));
 			}
 
-			// Process first batch in transaction
 			if (leadBatches.length > 0) {
 				const firstBatch = leadBatches[0];
 				firstBatch.forEach((username) => {
 					const leadRef = db.collection("leads").doc();
-
 					transaction.set(leadRef, {
 						campaignId: campaignId,
 						username: username,
@@ -180,7 +167,6 @@ router.post("/create", async (req, res) => {
 			}
 		});
 
-		// Process remaining lead batches outside transaction if any
 		if (processedLeads.length > 400) {
 			const remainingLeads = processedLeads.slice(400);
 			const LeadService = require("../services/leadService");
@@ -210,7 +196,7 @@ router.post("/create", async (req, res) => {
 	}
 });
 
-// GET /api/v1/campaign/ - Get all campaigns // done
+// GET /api/v1/campaign/ - Get all campaigns
 router.get("/", async (req, res) => {
 	try {
 		const campaignsRef = db.collection("campaigns");
@@ -241,11 +227,10 @@ router.get("/", async (req, res) => {
 	}
 });
 
-// DELETE /api/v1/campaign/:campaignId - Delete a campaign // done
+// DELETE /api/v1/campaign/:campaignId - Delete a campaign
 router.delete("/:campaignId", async (req, res) => {
 	try {
 		const { campaignId } = req.params;
-
 		const campaignRef = db.collection("campaigns").doc(campaignId);
 		const campaignSnap = await campaignRef.get();
 
@@ -257,7 +242,6 @@ router.delete("/:campaignId", async (req, res) => {
 
 		const campaignData = campaignSnap.data();
 
-		// Authorization check
 		if (campaignData.userId !== req.user.uid) {
 			return res
 				.status(HTTP_STATUS.FORBIDDEN)
@@ -270,7 +254,6 @@ router.delete("/:campaignId", async (req, res) => {
 				);
 		}
 
-		// Prevent deleting active campaign
 		if (campaignData.status === "active") {
 			return res
 				.status(HTTP_STATUS.BAD_REQUEST)
@@ -282,7 +265,6 @@ router.delete("/:campaignId", async (req, res) => {
 		let batch = db.batch();
 		let count = 0;
 
-		// 🔹 1. Delete leads related to this campaign
 		const leadsQuery = db
 			.collection("leads")
 			.where("campaignId", "==", campaignId);
@@ -298,7 +280,6 @@ router.delete("/:campaignId", async (req, res) => {
 			}
 		}
 
-		// 🔹 2. Update all accounts with currentCampaignId == campaignId
 		const accountsQuery = db
 			.collection("accounts")
 			.where("currentCampaignId", "==", campaignId);
@@ -314,11 +295,9 @@ router.delete("/:campaignId", async (req, res) => {
 			}
 		}
 
-		// 🔹 3. Delete the campaign document
 		batch.delete(campaignRef);
 		count++;
 
-		// Final commit if anything left
 		if (count > 0) {
 			deleteOps.push(batch.commit());
 		}
@@ -346,7 +325,7 @@ router.delete("/:campaignId", async (req, res) => {
 	}
 });
 
-// POST /api/v1/campaign/start - Start campaign // done
+// POST /api/v1/campaign/start - Start campaign
 router.post("/start", async (req, res) => {
 	try {
 		const { campaignID } = req.query;
@@ -359,7 +338,6 @@ router.post("/start", async (req, res) => {
 			});
 		}
 
-		// Verify campaign exists and belongs to user
 		const campaignDoc = await db.collection("campaigns").doc(campaignID).get();
 		if (!campaignDoc.exists || campaignDoc.data().userId !== req.user.uid) {
 			return res
@@ -367,47 +345,67 @@ router.post("/start", async (req, res) => {
 				.json({ success: false, message: "Campaign not found" });
 		}
 
-		// Create or update account
-		const accountId = widgetId;
-		const accountData = {
-			userId: req.user.uid,
-			displayName,
-			platform: campaignDoc.data().platform,
-			status: "active",
-			currentCampaignId: campaignID,
-			createdAt: Date.now(),
-			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-			pendingLeadsCount: 0,
-		};
-
-		await db
+		const existingAccountQuery = await db
 			.collection("accounts")
-			.doc(accountId)
-			.set(accountData, { merge: true });
+			.where("userId", "==", req.user.uid)
+			.where("widgetId", "==", widgetId)
+			.limit(1)
+			.get();
 
-		// Update campaign status
+		let accountDoc;
+		let accountData;
+
+		if (!existingAccountQuery.empty) {
+			accountDoc = existingAccountQuery.docs[0];
+			accountData = {
+				displayName,
+				platform: campaignDoc.data().platform,
+				status: "active",
+				currentCampaignId: campaignID,
+				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+				pendingLeadsCount: 0,
+			};
+
+			await accountDoc.ref.update(accountData);
+
+			const updatedDoc = await accountDoc.ref.get();
+			accountData = { id: updatedDoc.id, ...updatedDoc.data() };
+		} else {
+			accountData = {
+				userId: req.user.uid,
+				widgetId: widgetId,
+				displayName,
+				platform: campaignDoc.data().platform,
+				status: "active",
+				currentCampaignId: campaignID,
+				createdAt: Date.now(),
+				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+				pendingLeadsCount: 0,
+			};
+
+			const newAccountRef = await db.collection("accounts").add(accountData);
+			accountData.id = newAccountRef.id;
+		}
+
 		await db.collection("campaigns").doc(campaignID).update({
 			status: "active",
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 		});
 
-		// Assign leads to this account
-		await LeadService.assignLeadsToAccount(campaignID, accountId, 24);
-
-		const updatedUser = await db.collection("accounts").doc(accountId).get();
-		const updatedUserData = updatedUser.data();
+		await LeadService.assignLeadsToAccount(campaignID, accountData.id, 24);
 
 		res.json({
 			success: true,
 			message:
-				"Campaign started, account created/reused. Lead assignment will proceed in the background.",
-			accountId: accountId,
+				"Campaign started, account created/updated. Lead assignment will proceed in the background.",
+			accountId: accountData.id,
 			account: {
-				accountId: accountId,
+				accountId: accountData.id,
+				widgetId: accountData.widgetId,
 				displayName: accountData.displayName,
 				createdAt: accountData.createdAt,
 				campaignId: accountData.currentCampaignId,
-				lastUpdated: updatedUserData.lastUpdated,
+				lastUpdated: accountData.lastUpdated,
 				status: accountData.status,
 				pendingLeadsCount: accountData.pendingLeadsCount,
 			},
@@ -428,8 +426,8 @@ router.patch("/start-all", async (req, res) => {
 			.status(400)
 			.json({ success: false, message: "Missing campaignId" });
 	}
+
 	try {
-		// Check campaign exists & user owns it
 		const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
 		if (!campaignDoc.exists || campaignDoc.data().userId !== req.user.uid) {
 			return res.status(404).json({
@@ -438,30 +436,26 @@ router.patch("/start-all", async (req, res) => {
 			});
 		}
 
-		// Find all accounts linked to this campaign
 		const accountsSnap = await db
 			.collection("accounts")
 			.where("currentCampaignId", "==", campaignId)
 			.get();
 
-		// Batch update all accounts: status "active" and update lastUpdated, assign leads
 		const batch = db.batch();
 		for (const doc of accountsSnap.docs) {
 			batch.update(doc.ref, {
 				status: "active",
 				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 			});
-			// Optionally (sync), assign leads if you want per-account, e.g.:
-			// await LeadService.assignLeadsToAccount(campaignId, doc.id, 24);
 		}
-		// Update campaign status as well
+
 		batch.update(db.collection("campaigns").doc(campaignId), {
 			status: "active",
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 		});
+
 		await batch.commit();
 
-		// Optionally, assign leads in parallel for all accounts (async, not in Firestore batch)
 		await Promise.allSettled(
 			accountsSnap.docs.map((doc) =>
 				LeadService.assignLeadsToAccount(campaignId, doc.id, 24)
@@ -491,19 +485,35 @@ router.patch("/pause", async (req, res) => {
 			});
 		}
 
-		// Update account status
-		await db.collection("accounts").doc(accountId).update({
+		// Find account by widgetId field, not document ID
+		const accountSnapshot = await db
+			.collection("accounts")
+			.where("widgetId", "==", accountId)
+			.limit(1)
+			.get();
+
+		if (accountSnapshot.empty) {
+			return res.status(404).json({
+				success: false,
+				message: "Account not found",
+			});
+		}
+
+		const accountDoc = accountSnapshot.docs[0];
+
+		// Update using the actual document ID
+		await accountDoc.ref.update({
 			status: "paused",
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 		});
 
-		// Update campaign status
 		await db.collection("campaigns").doc(campaignID).update({
 			status: "paused",
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 		});
 
-		await LeadService.unAssignLeads(campaignID, accountId, 24);
+		// Pass the actual document ID to leadService
+		await LeadService.unAssignLeads(campaignID, accountDoc.id, 24);
 
 		res.json({ success: true, message: "Campaign paused successfully" });
 	} catch (error) {
@@ -514,7 +524,7 @@ router.patch("/pause", async (req, res) => {
 	}
 });
 
-// PATCH /api/v1/campaign/:campaignId/pause-all
+// PATCH /api/v1/campaign/pause-all
 router.patch("/pause-all", async (req, res) => {
 	const { campaignId } = req.query;
 	if (campaignId === undefined) {
@@ -522,8 +532,8 @@ router.patch("/pause-all", async (req, res) => {
 			.status(400)
 			.json({ success: false, message: "Missing campaignId" });
 	}
+
 	try {
-		// Check campaign exists & user owns it
 		const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
 		if (!campaignDoc.exists || campaignDoc.data().userId !== req.user.uid) {
 			return res.status(404).json({
@@ -532,13 +542,11 @@ router.patch("/pause-all", async (req, res) => {
 			});
 		}
 
-		// Find all accounts linked to this campaign
 		const accountsSnap = await db
 			.collection("accounts")
 			.where("currentCampaignId", "==", campaignId)
 			.get();
 
-		// Batch update all accounts: status "paused" and update lastUpdated
 		const batch = db.batch();
 		for (const doc of accountsSnap.docs) {
 			batch.update(doc.ref, {
@@ -546,13 +554,14 @@ router.patch("/pause-all", async (req, res) => {
 				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 			});
 		}
+
 		batch.update(db.collection("campaigns").doc(campaignId), {
 			status: "paused",
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 		});
+
 		await batch.commit();
 
-		// Unassign leads for all accounts (async, not in Firestore batch)
 		await Promise.allSettled(
 			accountsSnap.docs.map((doc) =>
 				LeadService.unAssignLeads(campaignId, doc.id, 24)
@@ -570,7 +579,7 @@ router.patch("/pause-all", async (req, res) => {
 	}
 });
 
-// GET /api/v1/campaign/account-status - Check account status // done
+// GET /api/v1/campaign/account-status - Check account status
 router.get("/account-status", async (req, res) => {
 	try {
 		const { widgetID } = req.query;
@@ -581,20 +590,26 @@ router.get("/account-status", async (req, res) => {
 				.json({ success: false, message: "Missing widgetID" });
 		}
 
-		const accountDoc = await db.collection("accounts").doc(widgetID).get();
+		// FIXED: Query by widgetId field, not document ID
+		const accountSnapshot = await db
+			.collection("accounts")
+			.where("widgetId", "==", widgetID)
+			.limit(1)
+			.get();
 
-		if (!accountDoc.exists) {
+		if (accountSnapshot.empty) {
 			return res
 				.status(404)
 				.json({ success: false, message: "Account not found" });
 		}
 
+		const accountDoc = accountSnapshot.docs[0];
 		const accountData = accountDoc.data();
+		const accountId = accountDoc.id; // This is the actual document ID
 
-		// Get pending leads count
 		const leadsSnapshot = await db
 			.collection("leads")
-			.where("assignedAccount", "==", widgetID)
+			.where("assignedAccount", "==", accountId) // Use document ID here
 			.where("status", "==", "ready")
 			.get();
 
@@ -603,7 +618,8 @@ router.get("/account-status", async (req, res) => {
 		res.json({
 			success: true,
 			account: {
-				accountId: widgetID,
+				accountId: accountId, // Return document ID
+				widgetId: accountData.widgetId, // Return widgetId as field
 				displayName: accountData.displayName,
 				status: accountData.status,
 				createdAt: accountData.createdAt,
@@ -620,7 +636,7 @@ router.get("/account-status", async (req, res) => {
 	}
 });
 
-// GET /api/v1/campaign/campaign-status - Check campaign status // done
+// GET /api/v1/campaign/campaign-status - Check campaign status
 router.get("/campaign-status", async (req, res) => {
 	try {
 		const { campaignID } = req.query;
@@ -641,7 +657,6 @@ router.get("/campaign-status", async (req, res) => {
 
 		const campaignData = campaignDoc.data();
 
-		// Check working hours
 		const withinWorkingHours = WorkingHoursService.isWithinWorkingHours(
 			campaignData.workingHours || { start: 0, end: 24 }
 		);
@@ -670,7 +685,7 @@ router.get("/campaign-status", async (req, res) => {
 	}
 });
 
-// GET /api/v1/campaign/fetch-leads - Get leads for processing // done
+// GET /api/v1/campaign/fetch-leads - Get leads for processing
 router.get("/fetch-leads", async (req, res) => {
 	try {
 		const { campaignID, accountId } = req.query;
@@ -692,10 +707,10 @@ router.get("/fetch-leads", async (req, res) => {
 
 		const campaignData = campaignDoc.data();
 
-		// Check working hours
 		const withinWorkingHours = WorkingHoursService.isWithinWorkingHours(
 			campaignData.workingHours || { start: 0, end: 24 }
 		);
+
 		if (!withinWorkingHours) {
 			return res.status(200).json({
 				success: true,
@@ -710,7 +725,7 @@ router.get("/fetch-leads", async (req, res) => {
 			campaignData.workingHours || { start: 0, end: 24 },
 			campaignData.messageLimits || { min: 35, max: 41 }
 		);
-		// Check if daily limit reached
+
 		if (rateInfo.remainingMessages <= 0) {
 			return res.json({
 				success: true,
@@ -726,16 +741,14 @@ router.get("/fetch-leads", async (req, res) => {
 			8
 		);
 
-		// if no assigned leads
 		if (leads.length === 0) {
-			// try assigning
 			const leadsCount = await LeadService.assignLeadsToAccount(
 				campaignID,
 				accountId,
 				24
 			);
+
 			if (leadsCount === 0) {
-				// if cant assign then no leads left
 				return res.status(400).json({
 					success: true,
 					leads: [],
@@ -766,7 +779,7 @@ router.get("/fetch-leads", async (req, res) => {
 	}
 });
 
-// GET /api/v1/campaign/fetch-lead - Get specific lead details // done
+// GET /api/v1/campaign/fetch-lead - Get specific lead details
 router.get("/fetch-lead", async (req, res) => {
 	try {
 		const { campaignID, leadID } = req.query;
@@ -802,7 +815,7 @@ router.get("/fetch-lead", async (req, res) => {
 	}
 });
 
-// PUT /api/v1/campaign/set-lead-status - Update lead status // done
+// PUT /api/v1/campaign/set-lead-status - Update lead status
 router.put("/set-lead-status", async (req, res) => {
 	try {
 		const { campaignID, leadID } = req.query;
@@ -840,7 +853,6 @@ router.post("/check-response", async (req, res) => {
 			});
 		}
 
-		// Check latest analytics for this user
 		const analyticsSnapshot = await db
 			.collection("analytics")
 			.where("campaignID", "==", campaignID)
@@ -850,11 +862,9 @@ router.post("/check-response", async (req, res) => {
 			.get();
 
 		let status = "noResponse";
-
 		if (!analyticsSnapshot.empty) {
 			const latestEvent = analyticsSnapshot.docs[0].data();
-			// You can implement logic to check if user responded based on your criteria
-			status = "found"; // or 'noResponse' based on your logic
+			status = "found";
 		}
 
 		res.json({ success: true, status });
@@ -866,7 +876,7 @@ router.post("/check-response", async (req, res) => {
 	}
 });
 
-// POST /api/v1/campaign/analytics - Record analytics // done
+// POST /api/v1/campaign/analytics - Record analytics
 router.post("/analytics", async (req, res) => {
 	try {
 		const {
@@ -901,10 +911,8 @@ router.post("/analytics", async (req, res) => {
 		};
 
 		console.log("Adding analytics");
-
 		await db.collection("analytics").add(analyticsData);
 
-		// set lead status from sending to sent
 		await db
 			.collection("leads")
 			.doc(leadID)
@@ -914,7 +922,6 @@ router.post("/analytics", async (req, res) => {
 				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 			});
 
-		// Update rate limiting info
 		if (status === "initialdmsent" || status === "followup") {
 			await RateService.recordMessageSent(accountID, campaignID);
 		}
@@ -928,7 +935,6 @@ router.post("/analytics", async (req, res) => {
 	}
 });
 
-// for frontends
 // GET /api/v1/campaign/:campaignId - Get single campaign by ID
 router.get("/:campaignId", async (req, res) => {
 	try {
@@ -950,14 +956,12 @@ router.get("/:campaignId", async (req, res) => {
 
 		const campaignData = campaignDoc.data();
 
-		// Verify campaign belongs to user
 		if (campaignData.userId !== req.user.uid) {
 			return res
 				.status(HTTP_STATUS.FORBIDDEN)
 				.json(createResponse(false, null, "Access denied"));
 		}
 
-		// Get campaign stats
 		const leadsSnapshot = await db
 			.collection("leads")
 			.where("campaignId", "==", campaignId)
@@ -1008,7 +1012,7 @@ router.put("/:campaignId", async (req, res) => {
 			name,
 			description,
 			platform,
-			newLeads, // Only new leads to be added
+			newLeads,
 			variants,
 			workingHours,
 			messageLimits,
@@ -1024,7 +1028,6 @@ router.put("/:campaignId", async (req, res) => {
 				.json(createResponse(false, null, "Campaign ID is required"));
 		}
 
-		// Get existing campaign
 		const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
 
 		if (!campaignDoc.exists) {
@@ -1035,16 +1038,13 @@ router.put("/:campaignId", async (req, res) => {
 
 		const existingCampaign = campaignDoc.data();
 
-		// Verify campaign belongs to user
 		if (existingCampaign.userId !== req.user.uid) {
 			return res
 				.status(HTTP_STATUS.FORBIDDEN)
 				.json(createResponse(false, null, "Access denied"));
 		}
 
-		// Check if campaign is running - only allow certain updates
 		if (existingCampaign.status === "active") {
-			// Only allow updating certain fields when campaign is active
 			const allowedUpdates = {
 				name: name?.trim() || existingCampaign.name,
 				description: description?.trim() || existingCampaign.description,
@@ -1080,13 +1080,11 @@ router.put("/:campaignId", async (req, res) => {
 			);
 		}
 
-		// Full update for non-active campaigns
 		const updateData = {
 			updatedAt: Date.now(),
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 		};
 
-		// Update fields if provided
 		if (name) updateData.name = name.trim();
 		if (description) updateData.description = description.trim();
 		if (tag) updateData.tag = tag.trim();
@@ -1100,7 +1098,6 @@ router.put("/:campaignId", async (req, res) => {
 		if (autoLikeNewestPost !== undefined)
 			updateData.autoLikeNewestPost = autoLikeNewestPost;
 
-		// Handle variants update
 		if (variants && Array.isArray(variants)) {
 			const invalidVariants = variants.filter(
 				(variant) => !variant.message || variant.message.trim() === ""
@@ -1116,12 +1113,12 @@ router.put("/:campaignId", async (req, res) => {
 						)
 					);
 			}
+
 			updateData.variants = variants.map((variant) => ({
 				message: variant.message.trim(),
 			}));
 		}
 
-		// Handle NEW leads only - don't remove existing ones
 		if (newLeads && Array.isArray(newLeads) && newLeads.length > 0) {
 			const processedNewLeads = [
 				...new Set(
@@ -1132,7 +1129,6 @@ router.put("/:campaignId", async (req, res) => {
 			].filter((lead) => lead && lead.length > 0);
 
 			if (processedNewLeads.length > 0) {
-				// Get existing leads to avoid duplicates
 				const existingLeadsSnapshot = await db
 					.collection("leads")
 					.where("campaignId", "==", campaignId)
@@ -1142,31 +1138,25 @@ router.put("/:campaignId", async (req, res) => {
 					existingLeadsSnapshot.docs.map((doc) => doc.data().username)
 				);
 
-				// Filter out leads that already exist
 				const trulyNewLeads = processedNewLeads.filter(
 					(username) => !existingUsernames.has(username)
 				);
 
 				if (trulyNewLeads.length > 0) {
-					// Create new leads
 					await LeadService.createLeadsFromCampaign(campaignId, trulyNewLeads);
 
-					// Update campaign with new total count
 					const newTotalLeads =
 						existingCampaign.totalLeads + trulyNewLeads.length;
 					updateData.totalLeads = newTotalLeads;
 
-					// Update allLeads string by appending new leads
 					const newLeadsString = trulyNewLeads.join("\n") + "\n";
 					updateData.allLeads = existingCampaign.allLeads + newLeadsString;
 				}
 			}
 		}
 
-		// Update campaign
 		await db.collection("campaigns").doc(campaignId).update(updateData);
 
-		// Get updated campaign data
 		const updatedCampaignDoc = await db
 			.collection("campaigns")
 			.doc(campaignId)

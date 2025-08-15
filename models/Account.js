@@ -3,11 +3,13 @@ const { db, admin } = require("../config/firebase");
 class Account {
 	constructor(data) {
 		// immutable
-		this.id = data.id; // This is the widgetId
+		this.id = data.id; // This is now the Firestore document ID
+		this.widgetId = data.widgetId; // Store widgetId as a separate field
 		this.userId = data.userId;
 		this.displayName = data.displayName;
 		this.platform = data.platform;
 		this.createdAt = data.createdAt || Date.now();
+
 		// mutable
 		this.currentCampaignId = data.currentCampaignId;
 		this.status = data.status || "ready";
@@ -15,12 +17,49 @@ class Account {
 		this.pendingLeadsCount = data.pendingLeadsCount || 0;
 	}
 
-	static async findById(accountId) {
+	static async findById(id) {
 		try {
-			const doc = await db.collection("accounts").doc(accountId).get();
+			const doc = await db.collection("accounts").doc(id).get();
 			return doc.exists ? new Account({ id: doc.id, ...doc.data() }) : null;
 		} catch (error) {
 			console.error("Error finding account:", error);
+			throw error;
+		}
+	}
+
+	static async findByWidgetId(widgetId) {
+		try {
+			const snapshot = await db
+				.collection("accounts")
+				.where("widgetId", "==", widgetId)
+				.limit(1)
+				.get();
+
+			if (snapshot.empty) return null;
+
+			const doc = snapshot.docs[0];
+			return new Account({ id: doc.id, ...doc.data() });
+		} catch (error) {
+			console.error("Error finding account by widgetId:", error);
+			throw error;
+		}
+	}
+
+	static async findByUserIdAndWidgetId(userId, widgetId) {
+		try {
+			const snapshot = await db
+				.collection("accounts")
+				.where("userId", "==", userId)
+				.where("widgetId", "==", widgetId)
+				.limit(1)
+				.get();
+
+			if (snapshot.empty) return null;
+
+			const doc = snapshot.docs[0];
+			return new Account({ id: doc.id, ...doc.data() });
+		} catch (error) {
+			console.error("Error finding account by userId and widgetId:", error);
 			throw error;
 		}
 	}
@@ -31,12 +70,10 @@ class Account {
 				.collection("accounts")
 				.where("userId", "==", userId)
 				.get();
-
 			const accounts = [];
 			snapshot.forEach((doc) => {
 				accounts.push(new Account({ id: doc.id, ...doc.data() }));
 			});
-
 			return accounts;
 		} catch (error) {
 			console.error("Error finding accounts by user:", error);
@@ -44,26 +81,40 @@ class Account {
 		}
 	}
 
-	static async createOrUpdate(accountData) {
+	static async create(accountData) {
 		try {
-			const account = new Account(accountData);
-			await db.collection("accounts").doc(account.id).set(
-				{
-					userId: account.userId,
-					displayName: account.displayName,
-					platform: account.platform,
-					status: account.status,
-					currentCampaignId: account.currentCampaignId,
-					pendingLeadsCount: account.pendingLeadsCount,
-					createdAt: account.createdAt,
-					lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-				},
-				{ merge: true }
-			);
+			const docRef = await db.collection("accounts").add({
+				userId: accountData.userId,
+				widgetId: accountData.widgetId,
+				displayName: accountData.displayName,
+				platform: accountData.platform,
+				status: accountData.status || "ready",
+				currentCampaignId: accountData.currentCampaignId,
+				pendingLeadsCount: accountData.pendingLeadsCount || 0,
+				createdAt: accountData.createdAt || Date.now(),
+				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+			});
 
-			return account;
+			return new Account({ id: docRef.id, ...accountData });
 		} catch (error) {
-			console.error("Error creating/updating account:", error);
+			console.error("Error creating account:", error);
+			throw error;
+		}
+	}
+
+	async update(updateData) {
+		try {
+			const updates = {
+				...updateData,
+				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+			};
+
+			await db.collection("accounts").doc(this.id).update(updates);
+
+			Object.assign(this, updateData);
+			return this;
+		} catch (error) {
+			console.error("Error updating account:", error);
 			throw error;
 		}
 	}
@@ -99,6 +150,7 @@ class Account {
 	toJSON() {
 		return {
 			accountId: this.id,
+			widgetId: this.widgetId,
 			userId: this.userId,
 			displayName: this.displayName,
 			platform: this.platform,
