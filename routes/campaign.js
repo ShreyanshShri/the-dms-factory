@@ -352,6 +352,10 @@ router.post("/start", async (req, res) => {
 			.limit(1)
 			.get();
 
+		console.log("userId", req.user.uid);
+		console.log("widgetId", widgetId);
+		console.log("existingAccountQuery", existingAccountQuery);
+
 		let accountDoc;
 		let accountData;
 
@@ -458,7 +462,7 @@ router.patch("/start-all", async (req, res) => {
 
 		await Promise.allSettled(
 			accountsSnap.docs.map((doc) =>
-				LeadService.assignLeadsToAccount(campaignId, doc.widgetId, 24)
+				LeadService.assignLeadsToAccount(campaignId, doc.data().widgetId, 24)
 			)
 		);
 
@@ -564,7 +568,7 @@ router.patch("/pause-all", async (req, res) => {
 
 		await Promise.allSettled(
 			accountsSnap.docs.map((doc) =>
-				LeadService.unAssignLeads(campaignId, doc.widgetId, 24)
+				LeadService.unAssignLeads(campaignId, doc.data().widgetId, 24)
 			)
 		);
 

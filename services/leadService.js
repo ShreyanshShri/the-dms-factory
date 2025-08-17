@@ -3,6 +3,10 @@ const { v4: uuidv4 } = require("uuid");
 
 class LeadService {
 	static async assignLeadsToAccount(campaignID, accountId, count = 24) {
+		if (campaignID === undefined || accountId === undefined) {
+			console.log(accountId);
+			return 0;
+		}
 		try {
 			// Find account by widgetId field
 			const accountSnapshot = await db

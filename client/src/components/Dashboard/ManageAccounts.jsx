@@ -132,7 +132,7 @@ const ManageAccounts = () => {
 				? ""
 				: destCol.id;
 			setUpdatingCampaignStatus(true);
-			await accountAPI.assign(movedAcc.id, newCampaignId);
+			await accountAPI.assign(movedAcc.widgetId, newCampaignId);
 			setUpdatingCampaignStatus(false);
 		} catch (e) {
 			console.error("Assignment failed:", e);
@@ -164,7 +164,7 @@ const ManageAccounts = () => {
 			if (col.id !== campaignId) return col;
 
 			const updatedAccounts = col.accounts.map((acc) =>
-				acc.id === accountId
+				acc.widgetId === accountId
 					? {
 							...acc,
 							status: isActive ? "paused" : "active",
@@ -202,7 +202,7 @@ const ManageAccounts = () => {
 				if (col.id !== campaignId) return col;
 
 				const restoredAccounts = col.accounts.map((acc) =>
-					acc.id === accountId
+					acc.widgetId === accountId
 						? { ...acc, status: isActive ? "active" : "paused" }
 						: acc
 				);
@@ -361,7 +361,7 @@ const ManageAccounts = () => {
 											</div>
 
 											<div className="account-details">
-												<p className="account-id">ID: {acc.id}</p>
+												<p className="account-id">ID: {acc.widgetId}</p>
 												<p className="account-pending">
 													Pending: {acc.pendingLeadsCount || 0}
 												</p>
@@ -377,7 +377,7 @@ const ManageAccounts = () => {
 															e.stopPropagation();
 															toggleCampaign(
 																col.id,
-																acc.id,
+																acc.widgetId,
 																acc.displayName,
 																acc.status === "active"
 															);
