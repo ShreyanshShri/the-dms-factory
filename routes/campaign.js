@@ -392,7 +392,7 @@ router.post("/start", async (req, res) => {
 			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
 		});
 
-		await LeadService.assignLeadsToAccount(campaignID, accountData.id, 24);
+		await LeadService.assignLeadsToAccount(campaignID, widgetId, 24);
 
 		res.json({
 			success: true,
@@ -458,7 +458,7 @@ router.patch("/start-all", async (req, res) => {
 
 		await Promise.allSettled(
 			accountsSnap.docs.map((doc) =>
-				LeadService.assignLeadsToAccount(campaignId, doc.id, 24)
+				LeadService.assignLeadsToAccount(campaignId, doc.widgetId, 24)
 			)
 		);
 
@@ -513,7 +513,7 @@ router.patch("/pause", async (req, res) => {
 		});
 
 		// Pass the actual document ID to leadService
-		await LeadService.unAssignLeads(campaignID, accountDoc.id, 24);
+		await LeadService.unAssignLeads(campaignID, accountId, 24);
 
 		res.json({ success: true, message: "Campaign paused successfully" });
 	} catch (error) {
@@ -564,7 +564,7 @@ router.patch("/pause-all", async (req, res) => {
 
 		await Promise.allSettled(
 			accountsSnap.docs.map((doc) =>
-				LeadService.unAssignLeads(campaignId, doc.id, 24)
+				LeadService.unAssignLeads(campaignId, doc.widgetId, 24)
 			)
 		);
 

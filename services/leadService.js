@@ -22,14 +22,14 @@ class LeadService {
 			const assignedLeadsSnapshot = await db
 				.collection("leads")
 				.where("campaignId", "==", campaignID)
-				.where("assignedAccount", "==", actualAccountId)
+				.where("assignedAccount", "==", accountId)
 				.where("status", "==", "ready")
 				.limit(count)
 				.get();
 
 			if (assignedLeadsSnapshot.size > 0) {
 				console.log(
-					`${assignedLeadsSnapshot.size} Leads already assigned to account ${actualAccountId}`
+					`${assignedLeadsSnapshot.size} Leads already assigned to account ${accountId}`
 				);
 				return assignedLeadsSnapshot.size;
 			}
@@ -50,13 +50,13 @@ class LeadService {
 				const data = doc.data();
 				if (data.assignedAt === null) {
 					batch.update(doc.ref, {
-						assignedAccount: actualAccountId,
+						assignedAccount: accountId,
 						lastReassignedAt: assignedAt,
 						assignedAt: assignedAt,
 					});
 				} else {
 					batch.update(doc.ref, {
-						assignedAccount: actualAccountId,
+						assignedAccount: accountId,
 						lastReassignedAt: assignedAt,
 					});
 				}
@@ -69,7 +69,7 @@ class LeadService {
 			});
 
 			console.log(
-				`Assigned ${leadsSnapshot.size} leads to account ${actualAccountId}`
+				`Assigned ${leadsSnapshot.size} leads to account ${accountId}`
 			);
 			return leadsSnapshot.size;
 		} catch (error) {
@@ -94,12 +94,12 @@ class LeadService {
 
 			const actualAccountId = accountSnapshot.docs[0].id;
 
-			console.log("testing: from unassign leads", campaignID, actualAccountId);
+			console.log("testing: from unassign leads", campaignID, accountId);
 
 			const leadsSnapshot = await db
 				.collection("leads")
 				.where("campaignId", "==", campaignID)
-				.where("assignedAccount", "==", actualAccountId)
+				.where("assignedAccount", "==", accountId)
 				.where("status", "==", "ready")
 				.get();
 
@@ -123,9 +123,7 @@ class LeadService {
 				pendingLeadsCount: 0,
 			});
 
-			console.log(
-				`Unassigned ${leadsSnapshot.size} leads from ${actualAccountId}`
-			);
+			console.log(`Unassigned ${leadsSnapshot.size} leads from ${accountId}`);
 			return leadsSnapshot.size;
 		} catch (error) {
 			console.error("Error unassigning leads:", error);
@@ -147,12 +145,10 @@ class LeadService {
 				return [];
 			}
 
-			const actualAccountId = accountSnapshot.docs[0].id;
-
 			const leadsSnapshot = await db
 				.collection("leads")
 				.where("campaignId", "==", campaignID)
-				.where("assignedAccount", "==", actualAccountId)
+				.where("assignedAccount", "==", accountId)
 				.where("status", "==", "ready")
 				.limit(batchSize)
 				.get();
