@@ -167,6 +167,8 @@
 
 .campaign-column-name {
 	display: flex;
+	align-items: center;
+	justify-content: center;
 	gap: 8px;
 }
 
@@ -181,6 +183,7 @@
 	font-size: 12px;
 	font-weight: 500;
 	text-transform: capitalize;
+	height: fit-content;
 }
 
 .campaign-status-badge.ready {
@@ -237,6 +240,77 @@
 	cursor: grab;
 	transition: all 0.2s ease;
 	position: relative;
+}
+
+.account-card.selected {
+	border: 2px solid #007bff;
+}
+
+.account-card.ghosting {
+	opacity: 0.5;
+}
+
+.account-selection-indicator {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	background: #007bff;
+	color: white;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	opacity: 0;
+	transition: opacity 0.2s;
+}
+
+.account-card.selected .account-selection-indicator {
+	opacity: 1;
+}
+
+.multi-drag-count {
+	position: absolute;
+	top: -8px;
+	right: -8px;
+	background: #dc3545;
+	color: white;
+	border-radius: 50%;
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	font-weight: bold;
+	z-index: 10;
+}
+
+.account-card {
+	cursor: pointer;
+	position: relative;
+}
+
+.select-all-column-btn {
+	background: #6f42c1;
+	color: white;
+	border: none;
+	padding: 6px 12px;
+	border-radius: 6px;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background 0.2s ease;
+}
+
+.select-all-column-btn:hover {
+	background: #5a32a3;
+}
+
+.select-all-column-btn:active {
+	transform: translateY(1px);
 }
 
 .account-card:last-child {
@@ -356,6 +430,116 @@
 .account-action-btn:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
+}
+
+.multi-drag-stack {
+	position: relative;
+	width: 100%;
+	min-height: 120px;
+	padding: 0;
+}
+
+.stacked-card {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	background: white;
+	border-radius: 12px;
+	border: 2px solid #e1e5e9;
+	padding: 16px;
+	min-height: 110px;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+}
+
+.stacked-card:nth-child(1) {
+	transform: translateY(0px) translateX(0px) scale(1);
+	z-index: 3;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+	border-color: #007bff;
+}
+
+.stacked-card:nth-child(2) {
+	transform: translateY(-6px) translateX(-3px) scale(0.95);
+	z-index: 2;
+	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+	opacity: 0.85;
+}
+
+.stacked-card:nth-child(3) {
+	transform: translateY(-12px) translateX(-6px) scale(0.9);
+	z-index: 1;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+	opacity: 0.7;
+}
+
+.stacked-card.active {
+	border-color: #28a745;
+	background: linear-gradient(135deg, #ffffff 0%, #f8fff9 100%);
+}
+
+.stacked-card.paused {
+	border-color: #ffc107;
+	background: linear-gradient(135deg, #ffffff 0%, #fffdf0 100%);
+}
+
+.stacked-card h4 {
+	margin: 0 0 12px 0;
+	font-size: 15px;
+	font-weight: 600;
+	color: #1a202c;
+	line-height: 1.3;
+}
+
+.stacked-card .account-status {
+	font-size: 10px;
+	padding: 4px 10px;
+	border-radius: 20px;
+	text-transform: uppercase;
+	font-weight: 700;
+	letter-spacing: 0.5px;
+	align-self: flex-start;
+}
+
+.stacked-card .account-status.active {
+	background: #28a745;
+	color: white;
+}
+
+.stacked-card .account-status.paused {
+	background: #ffc107;
+	color: #856404;
+}
+
+.stack-count {
+	position: absolute;
+	top: -12px;
+	right: -12px;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	color: white;
+	border-radius: 20px;
+	padding: 6px 12px;
+	font-size: 11px;
+	font-weight: 700;
+	z-index: 10;
+	box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+	border: 2px solid white;
+}
+
+/* Drag enhancement */
+.account-card.drag-preview .multi-drag-stack {
+	transform: rotate(-2deg);
+}
+
+.account-card.drag-preview .stacked-card:nth-child(1) {
+	box-shadow: 0 12px 48px rgba(0, 0, 0, 0.2);
+	transform: translateY(-2px) translateX(0px) scale(1.02);
+}
+
+.account-card.selected.hidden-multi-drag {
+	display: none;
 }
 
 .empty-column {

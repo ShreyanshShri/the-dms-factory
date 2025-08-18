@@ -145,4 +145,56 @@ router.patch("/assign", async (req, res) => {
 	}
 });
 
+/* -------------------------------------------------------------
+   PATCH /api/v1/account/assign-many
+   body: { accountIds: [..], newCampaignId }
+----------------------------------------------------------------*/
+router.patch("/assign-many", async (req, res) => {
+	const { accountIds, newCampaignId } = req.body;
+	if (!Array.isArray(accountIds) || newCampaignId === undefined) {
+		return res.status(400).json(createResponse(false, null, "Missing params"));
+	}
+
+	try {
+		const batch = db.batch();
+
+		for (const widgetId of accountIds) {
+			const accountSnapshot = await db
+				.collection("accounts")
+				.where("widgetId", "==", widgetId)
+				.limit(1)
+				.get();
+
+			if (accountSnapshot.empty) continue;
+			const accountDoc = accountSnapshot.docs[0];
+			const accountData = accountDoc.data();
+
+			if (accountData.userId !== req.user.uid) continue;
+
+			// check platform mismatch if assigning to a campaign
+			if (newCampaignId) {
+				const newCamp = await db
+					.collection("campaigns")
+					.doc(newCampaignId)
+					.get();
+				if (!newCamp.exists || newCamp.data().platform !== accountData.platform)
+					continue;
+			}
+
+			batch.update(accountDoc.ref, {
+				currentCampaignId: newCampaignId,
+				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+			});
+		}
+
+		await batch.commit();
+		res.json(createResponse(true, null, "Accounts reassigned"));
+	} catch (e) {
+		console.error("assign-many error:", e);
+		res
+			.status(500)
+			.json(createResponse(false, null, "Failed to reassign accounts"));
+	}
+});
+
 module.exports = router;

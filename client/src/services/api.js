@@ -105,6 +105,11 @@ export const accountAPI = {
 	getOverview: async () => await axiosInstance.get("/account/overview"),
 	assign: async (accountId, newCampaignId) =>
 		await axiosInstance.patch("/account/assign", { accountId, newCampaignId }),
+	bulkAssign: async (accountIds, newCampaignId) =>
+		await axiosInstance.patch("/account/assign-many", {
+			accountIds,
+			newCampaignId,
+		}),
 };
 
 export const adminAPI = {
