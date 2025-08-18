@@ -23,7 +23,17 @@ setupCors(app);
 
 // Security middleware
 app.set("trust proxy", 1);
-app.use(helmet());
+app.use(
+	helmet.contentSecurityPolicy({
+		directives: {
+			defaultSrc: ["'self'"],
+			scriptSrc: ["'self'", "https://js.whop.com"],
+			frameSrc: ["'self'", "https://js.whop.com"], // Allow iframe from Whop
+			connectSrc: ["'self'", "https://js.whop.com"],
+			imgSrc: ["'self'", "data:", "https://js.whop.com"],
+		},
+	})
+);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
