@@ -31,6 +31,8 @@ router.post(
 			}
 
 			// Parse JSON manually after verification
+			console.log("rawBody", rawBody);
+			console.log("rawbody type", rawBody.type);
 			const event = JSON.parse(rawBody);
 			console.log("📩 Webhook received:", event.type);
 
