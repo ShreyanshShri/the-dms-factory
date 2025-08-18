@@ -1,0 +1,48 @@
+.admin-dashboard {
+	min-height: 100vh;
+	padding: 20px 0;
+}
+
+.access-denied {
+	text-align: center;
+	padding: 80px 20px;
+	background: var(--bg-secondary);
+	border-radius: var(--radius);
+	border: 1px solid var(--border-color);
+	margin: 40px auto;
+	max-width: 500px;
+}
+
+.access-denied h2 {
+	color: #dc3545;
+	margin-bottom: 16px;
+}
+
+.login-btn {
+	background: #dc3545;
+	color: white;
+	border: none;
+	padding: 10px 20px;
+	border-radius: var(--radius);
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	min-width: 80px;
+}
+
+.login-btn:hover {
+	background: #c82333;
+	transform: translateY(-1px);
+}
+
+.login-btn:active {
+	transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+	.login-btn {
+		width: 100%;
+		padding: 12px;
+	}
+}

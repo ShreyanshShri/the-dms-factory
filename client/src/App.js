@@ -10,6 +10,7 @@ import CampaignInfo from "./components/Campaign/CampaignInfo";
 import CampaignEdit from "./components/Campaign/CampaignEdit";
 import ManageAccounts from "./components/Dashboard/ManageAccounts";
 import AdminDashboard from "./components/Dashboard/AdminDashboard";
+import PaymentPortal from "./components/Payment/PaymentPortal";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
 import Layout from "./components/Layout/Layout";
 import "./styles/globals.css";
@@ -70,6 +71,14 @@ function App() {
 								element={
 									<ProtectedRoute requireAdmin={true}>
 										<AdminDashboard />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
+								path="/payment"
+								element={
+									<ProtectedRoute>
+										<PaymentPortal />
 									</ProtectedRoute>
 								}
 							/>

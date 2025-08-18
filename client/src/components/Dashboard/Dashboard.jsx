@@ -74,8 +74,12 @@ const Dashboard = () => {
 			<div className="admin-dashboard">
 				<div className="access-denied">
 					<h2>Access Denied</h2>
-					<p>You dont have permission to access this page.</p>
-					<p>Please contact the owner.</p>
+					<p>You donot have DMs factory subscription.</p>
+					<Link to="/payment">
+						<button className="logout-button">Buy Subscription</button>
+					</Link>
+					<br />
+					<p>If you already have a subscription, Please contact the owner.</p>
 					<br />
 					<button onClick={handleLogout} className="logout-button">
 						Logout
