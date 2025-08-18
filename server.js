@@ -10,6 +10,7 @@ const campaignRoutes = require("./routes/campaign");
 const authRoutes = require("./routes/auth");
 const accountRoutes = require("./routes/account");
 const adminRoutes = require("./routes/admin");
+const webhookRoutes = require("./routes/webhook");
 const { authenticateToken } = require("./middleware/auth");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
@@ -41,6 +42,7 @@ app.use("/api/v1/campaign", campaignRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/account", accountRoutes);
 app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/webhooks", webhookRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
