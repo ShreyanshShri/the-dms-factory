@@ -5,6 +5,8 @@ const crypto = require("crypto");
 
 const router = express.Router();
 
+const WHOP_WEBHOOK_SECRET = process.env.WHOP_WEBHOOK_SECRET;
+
 // Use raw parser only for this route
 router.post(
 	"/payment-webhook",
