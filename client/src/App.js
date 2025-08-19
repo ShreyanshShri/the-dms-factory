@@ -11,6 +11,7 @@ import CampaignEdit from "./components/Campaign/CampaignEdit";
 import ManageAccounts from "./components/Dashboard/ManageAccounts";
 import AdminDashboard from "./components/Dashboard/AdminDashboard";
 import PaymentPortal from "./components/Payment/PaymentPortal";
+import Inbox from "./components/Inbox/Inbox";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
 import Layout from "./components/Layout/Layout";
 import "./styles/globals.css";
@@ -62,6 +63,14 @@ function App() {
 								element={
 									<ProtectedRoute>
 										<ManageAccounts />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
+								path="/inbox"
+								element={
+									<ProtectedRoute>
+										<Inbox />
 									</ProtectedRoute>
 								}
 							/>

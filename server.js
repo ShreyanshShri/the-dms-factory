@@ -11,6 +11,7 @@ const authRoutes = require("./routes/auth");
 const accountRoutes = require("./routes/account");
 const adminRoutes = require("./routes/admin");
 const webhookRoutes = require("./routes/webhook");
+const chatRoutes = require("./routes/chat");
 const { authenticateToken } = require("./middleware/auth");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
@@ -27,10 +28,10 @@ app.use(
 	helmet.contentSecurityPolicy({
 		directives: {
 			defaultSrc: ["'self'"],
-			scriptSrc: ["'self'", "https://js.whop.com"],
-			frameSrc: ["'self'", "https://js.whop.com"], // Allow iframe from Whop
-			connectSrc: ["'self'", "https://js.whop.com"],
-			imgSrc: ["'self'", "data:", "https://js.whop.com"],
+			scriptSrc: ["'self'", "https://js.whop.com", "https://whop.com"],
+			frameSrc: ["'self'", "https://js.whop.com", "https://whop.com"], // Allow iframe from Whop
+			connectSrc: ["'self'", "https://js.whop.com", "https://whop.com"],
+			imgSrc: ["'self'", "data:", "https://js.whop.com", "https://whop.com"],
 		},
 	})
 );
@@ -53,6 +54,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/account", accountRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/webhooks", webhookRoutes);
+app.use("/api/v1/chats", chatRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
