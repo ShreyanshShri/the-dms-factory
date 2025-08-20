@@ -11,7 +11,7 @@ class User {
 
 		// mutables
 		this.isSubscribed = data.isSubscribed || false;
-		this.subscriptionStatus = data.subscriptionStatus || "pending";
+		this.subscriptionStatus = data.subscriptionStatus || "pending"; // approved, pending, failed
 		this.updatedAt = data.updatedAt || Date.now();
 	}
 

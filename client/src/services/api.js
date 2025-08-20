@@ -130,3 +130,9 @@ export const adminAPI = {
 		return await axiosInstance.get(`/admin/users?${params}`);
 	},
 };
+
+export const userAPI = {
+	getPaymentStatus: async () => {
+		return await axiosInstance.get("/users/payment-status");
+	},
+};

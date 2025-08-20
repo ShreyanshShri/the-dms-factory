@@ -12,6 +12,7 @@ const accountRoutes = require("./routes/account");
 const adminRoutes = require("./routes/admin");
 const webhookRoutes = require("./routes/webhook");
 const chatRoutes = require("./routes/chat");
+const userRoutes = require("./routes/user");
 const { authenticateToken } = require("./middleware/auth");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
@@ -35,6 +36,8 @@ app.use(
 		},
 	})
 );
+
+app.use("/api/v1/webhooks", webhookRoutes);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -53,8 +56,8 @@ app.use("/api/v1/campaign", campaignRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/account", accountRoutes);
 app.use("/api/v1/admin", adminRoutes);
-app.use("/api/v1/webhooks", webhookRoutes);
 app.use("/api/v1/chats", chatRoutes);
+app.use("/api/v1/users", userRoutes);
 
 // Health check
 app.get("/health", (req, res) => {

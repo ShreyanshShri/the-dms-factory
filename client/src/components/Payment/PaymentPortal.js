@@ -1,10 +1,11 @@
 import { WhopCheckoutEmbed } from "@whop/react/checkout";
-import { Link, redirect } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import "../../styles/payment.css";
 
 export default function PaymentPortal() {
 	const { user } = useAuth();
+	const navigate = useNavigate();
 	if (
 		user === null ||
 		user === undefined ||
@@ -40,13 +41,13 @@ export default function PaymentPortal() {
 
 	return (
 		<WhopCheckoutEmbed
-			planId="plan_aXqVNsIW5DeJn"
+			planId="plan_2ItO4NQcNGMmE"
 			prefill={{ email: user.email }}
 			disableEmail
 			theme="dark"
 			onComplete={(planId, receiptId) => {
 				console.log(planId, receiptId);
-				redirect("/dashboard");
+				navigate(`/dashboard?receiptId=${receiptId}`);
 			}}
 		/>
 	);
