@@ -22,86 +22,102 @@ function App() {
 		<AuthProvider>
 			<AdminProvider>
 				<Router>
-					<Layout>
-						<Routes>
-							<Route path="/" element={<IndexPage />} />
-							<Route path="/login" element={<Login />} />
-							<Route path="/register" element={<Register />} />
-							<Route
-								path="/dashboard"
-								element={
-									<ProtectedRoute>
+					<Routes>
+						<Route path="/" element={<IndexPage />} />
+						<Route path="/login" element={<Login />} />
+						<Route path="/register" element={<Register />} />
+						<Route
+							path="/dashboard"
+							element={
+								<ProtectedRoute>
+									<Layout>
 										<Dashboard />
-									</ProtectedRoute>
-								}
-							/>
-							<Route
-								path="/create-campaign"
-								element={
-									<ProtectedRoute>
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/create-campaign"
+							element={
+								<ProtectedRoute>
+									<Layout>
 										<CreateCampaign />
-									</ProtectedRoute>
-								}
-							/>
-							<Route
-								path="/campaign/:campaignId"
-								element={
-									<ProtectedRoute>
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/campaign/:campaignId"
+							element={
+								<ProtectedRoute>
+									<Layout>
 										<CampaignInfo />
-									</ProtectedRoute>
-								}
-							/>
-							<Route
-								path="/campaign/edit/:campaignId"
-								element={
-									<ProtectedRoute>
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/campaign/edit/:campaignId"
+							element={
+								<ProtectedRoute>
+									<Layout>
 										<CampaignEdit />
-									</ProtectedRoute>
-								}
-							/>
-							<Route
-								path="/manage-accounts"
-								element={
-									<ProtectedRoute>
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/manage-accounts"
+							element={
+								<ProtectedRoute>
+									<Layout>
 										<ManageAccounts />
-									</ProtectedRoute>
-								}
-							/>
-							<Route
-								path="/inbox"
-								element={
-									<ProtectedRoute>
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/inbox"
+							element={
+								<ProtectedRoute>
+									{/* No padding here */}
+									<Layout withPadding={false}>
 										<Inbox />
-									</ProtectedRoute>
-								}
-							/>
-
-							<Route
-								path="/admin"
-								element={
-									<ProtectedRoute requireAdmin={true}>
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/admin"
+							element={
+								<ProtectedRoute requireAdmin={true}>
+									<Layout>
 										<AdminDashboard />
-									</ProtectedRoute>
-								}
-							/>
-							<Route
-								path="/payment"
-								element={
-									<ProtectedRoute>
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/payment"
+							element={
+								<ProtectedRoute>
+									<Layout>
 										<PaymentPortal />
-									</ProtectedRoute>
-								}
-							/>
-							<Route
-								path="/payment/processing"
-								element={
-									<ProtectedRoute>
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/payment/processing"
+							element={
+								<ProtectedRoute>
+									<Layout>
 										<PaymentProcessing />
-									</ProtectedRoute>
-								}
-							/>
-						</Routes>
-					</Layout>
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+					</Routes>
 				</Router>
 			</AdminProvider>
 		</AuthProvider>

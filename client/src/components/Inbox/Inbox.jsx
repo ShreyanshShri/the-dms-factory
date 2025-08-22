@@ -1,117 +1,91 @@
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
+import InstagramLoginButton from "./InstagramLoginButton";
+import usePollingInbox from "../../hooks/usePollingInbox";
 import "../../styles/inbox.css";
 
-const contacts = [
-	{ id: 1, username: "john_doe", ig_scoped_id: "111111111111" },
-	{ id: 2, username: "jane_smith", ig_scoped_id: "222222222222" },
-];
-
 export default function ChatApp() {
-	const [active, setActive] = useState(null);
-	const [msgs, setMsgs] = useState({});
-	const [text, setText] = useState("");
-	const [sending, setSending] = useState(false);
+	const { accounts, conversations, messages, activeConv, setActiveConv, send } =
+		usePollingInbox(); // ← defaults to 60 000 ms
 
-	const selectContact = (c) => setActive(c);
-
-	const fetchConversations = async () => {
-		if (!active) return;
-		try {
-			const res = await fetch(`/api/v1/chats/conversations`);
-			const data = await res.json();
-			// Map data to msgs[active.id] if needed
-			console.log("Conversations:", data);
-		} catch (err) {
-			console.error(err);
-		}
-	};
-
-	const send = async () => {
-		if (!text.trim() || !active || sending) return;
-		setSending(true);
-
-		const pending = {
-			from: "me",
-			text,
-			time: new Date().toLocaleTimeString(),
-			pending: true,
-		};
-		setMsgs((m) => ({ ...m, [active.id]: [...(m[active.id] || []), pending] }));
-		setText("");
-
-		try {
-			await fetch("/api/v1/chats/messages", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					recipient_id: active.ig_scoped_id,
-					message: text.trim(),
-				}),
-			});
-			setMsgs((m) => ({
-				...m,
-				[active.id]: m[active.id].map((v) =>
-					v.pending ? { ...v, pending: false } : v
-				),
-			}));
-		} catch {
-			setMsgs((m) => ({
-				...m,
-				[active.id]: m[active.id].map((v) =>
-					v.pending ? { ...v, failed: true } : v
-				),
-			}));
-		} finally {
-			setSending(false);
-		}
-	};
+	const [draft, setDraft] = useState("");
+	const messagesEndRef = useRef(null);
 
 	useEffect(() => {
-		fetchConversations();
-	}, [active]);
+		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+	}, [messages]);
+
+	const sendMsg = () => {
+		send(draft);
+		setDraft("");
+	};
 
 	return (
 		<div className="chat-app">
 			<aside className="sidebar">
-				{contacts.map((c) => (
-					<div
-						key={c.id}
-						className={`contact ${active?.id === c.id ? "active" : ""}`}
-						onClick={() => selectContact(c)}
-					>
-						<div className="avatar">{c.username[0].toUpperCase()}</div>
-						<span className="name">@{c.username}</span>
-					</div>
-				))}
+				<h2 className="title">Unified Inbox</h2>
+				<div className="sidebar-section">
+					<h3>Accounts</h3>
+					<InstagramLoginButton />
+					<br />
+					<br />
+					{accounts?.map((a) => (
+						<div key={a.user_id} className="thread">
+							<div className="avatar">{a.username?.[0]?.toUpperCase()}</div>
+							<div className="name">{a.username}</div>
+						</div>
+					))}
+				</div>
+
+				<div className="sidebar-section">
+					<h3>Inbox</h3>
+					{conversations.map((c) => (
+						<div
+							key={c.id}
+							className={`thread ${
+								activeConv?.thread_id === c.thread_id ? "active" : ""
+							} ${!c.responded && "unresponded"}`}
+							onClick={() => setActiveConv(c)}
+						>
+							<div className="avatar">
+								{c.clientAccount?.username?.[0].toUpperCase()}
+							</div>
+							<div className="name">{c?.clientAccount?.username}</div>
+							{/* <div className="thread-last">{c.last_message}</div> */}
+						</div>
+					))}
+				</div>
 			</aside>
 
 			<main className="chat-pane">
-				{active ? (
+				{activeConv ? (
 					<>
-						<header className="chat-header">@{active.username}</header>
+						<header className="chat-header">
+							@{activeConv.clientAccount.username}
+							<span className="text-muted">
+								from @{activeConv.businessAccount.username}
+							</span>
+						</header>
 						<section className="messages">
-							{(msgs[active.id] || []).map((m, i) => (
+							{messages?.map((m, i) => (
 								<div
 									key={i}
-									className={`bubble ${m.from} ${m.pending ? "pending" : ""} ${
-										m.failed ? "failed" : ""
-									}`}
+									className={`bubble ${
+										m.sender_id === activeConv.clientAccount.id ? "other" : "me"
+									} ${m.pending ? "pending" : ""} ${m.failed ? "failed" : ""}`}
 								>
 									{m.text}
-									<span className="meta">
-										{m.pending ? "sending..." : m.failed ? "failed" : m.time}
-									</span>
 								</div>
 							))}
+							<div ref={messagesEndRef} />
 						</section>
 						<footer className="input-bar">
 							<input
-								value={text}
-								onChange={(e) => setText(e.target.value)}
-								placeholder={`Message @${active.username}`}
-								onKeyDown={(e) => e.key === "Enter" && send()}
+								value={draft}
+								onChange={(e) => setDraft(e.target.value)}
+								placeholder={`Message @${activeConv.clientAccount.username}…`}
+								onKeyDown={(e) => e.key === "Enter" && sendMsg()}
 							/>
-							<button onClick={send} disabled={sending || !text.trim()}>
+							<button onClick={sendMsg} disabled={draft === ""}>
 								➤
 							</button>
 						</footer>
