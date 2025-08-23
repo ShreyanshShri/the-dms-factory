@@ -25,6 +25,7 @@ const CampaignEdit = () => {
 		followUser: false,
 		autoLikeStory: false,
 		autoLikeNewestPost: false,
+		context: "",
 	});
 
 	const fetchCampaignData = useCallback(async () => {
@@ -50,6 +51,7 @@ const CampaignEdit = () => {
 					followUser: campaignData.followUser || false,
 					autoLikeStory: campaignData.autoLikeStory || false,
 					autoLikeNewestPost: campaignData.autoLikeNewestPost || false,
+					context: campaignData.context || "",
 				});
 			} else {
 				setError(response.message || "Failed to fetch campaign data");
@@ -184,6 +186,7 @@ const CampaignEdit = () => {
 				followUser: formData.followUser,
 				autoLikeStory: formData.autoLikeStory,
 				autoLikeNewestPost: formData.autoLikeNewestPost,
+				context: formData.context.trim(),
 			};
 
 			const response = await campaignAPI.updateCampaign(campaignId, updateData);
@@ -324,6 +327,18 @@ const CampaignEdit = () => {
 									handleInputChange("description", e.target.value)
 								}
 								placeholder="Describe your campaign"
+								rows={3}
+							/>
+						</div>
+
+						<div className="campaign-form-group">
+							<label htmlFor="context">Description</label>
+							<textarea
+								id="context"
+								className="campaign-form-textarea"
+								value={formData.context}
+								onChange={(e) => handleInputChange("context", e.target.value)}
+								placeholder="Provide Context for AI messaging"
 								rows={3}
 							/>
 						</div>

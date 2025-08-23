@@ -24,6 +24,7 @@ const CreateCampaign = () => {
 		followUser: false,
 		autoLikeStory: false,
 		autoLikeNewestPost: false,
+		context: "",
 	});
 
 	const handleChange = (e) => {
@@ -156,6 +157,19 @@ const CreateCampaign = () => {
 							onChange={handleChange}
 							className="form-textarea"
 							placeholder="Campaign description (optional)"
+							rows="3"
+						/>
+					</div>
+
+					<div className="form-group">
+						<label htmlFor="context">Context</label>
+						<textarea
+							id="context"
+							name="context"
+							value={formData.context}
+							onChange={handleChange}
+							className="form-textarea"
+							placeholder="Campaign context (optional)"
 							rows="3"
 						/>
 					</div>

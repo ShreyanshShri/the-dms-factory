@@ -13,6 +13,7 @@ const adminRoutes = require("./routes/admin");
 const webhookRoutes = require("./routes/webhook");
 const chatRoutes = require("./routes/chat");
 const userRoutes = require("./routes/user");
+const crmRoutes = require("./routes/crm");
 const { authenticateToken } = require("./middleware/auth");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
@@ -58,6 +59,7 @@ app.use("/api/v1/account", accountRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/chats", chatRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/crm", crmRoutes);
 
 // Health check
 app.get("/health", (req, res) => {

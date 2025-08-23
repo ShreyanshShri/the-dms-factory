@@ -120,7 +120,6 @@ router.get("/webhook", (req, res) => {
 // receive messages
 router.post("/webhook", async (req, res) => {
 	if (req.body.object !== "instagram") return res.sendStatus(404);
-
 	try {
 		for (const entry of req.body.entry) {
 			if (!entry.messaging) continue;
@@ -157,7 +156,7 @@ router.post("/webhook", async (req, res) => {
 					try {
 						const accountSnap = await db
 							.collection("instagram_accounts")
-							.doc(String(recipient_id))
+							.doc(String(business_account_id))
 							.get();
 						const token = accountSnap.data().access_token;
 
@@ -171,6 +170,26 @@ router.post("/webhook", async (req, res) => {
 						client_account_username = client_account_data.data.username;
 					} catch (err) {
 						console.warn("Failed to fetch IG username:", err);
+					}
+
+					const lead_snap = await db
+						.collection("leads")
+						.where("username", "==", client_account_username)
+						.limit(1)
+						.get();
+
+					let campaignId = null;
+					let context = "";
+					if (lead_snap.docs.length > 0) {
+						campaignId = lead_snap.docs[0].data().campaignId;
+						const campaign_snap = await db
+							.collection("campaigns")
+							.doc(campaignId)
+							.get();
+						if (campaign_snap.exists) {
+							const campaign = campaign_snap.data();
+							context = campaign.context || "";
+						}
 					}
 
 					await convRef.set({
@@ -187,7 +206,10 @@ router.post("/webhook", async (req, res) => {
 						last_time: msgTime,
 						unread_count: 1,
 						responded: business_account_id == sender_id,
+						interested: false,
 						tags: [],
+						campaignId,
+						context,
 					});
 				}
 
@@ -389,6 +411,52 @@ router.post("/send", authenticateToken, async (req, res) => {
 		res
 			.status(500)
 			.json({ error: err.response?.data?.error?.message || err.message });
+	}
+});
+
+router.post("/set-interested", authenticateToken, async (req, res) => {
+	try {
+		const { sender_id, recipient_id, state } = req.body;
+		const convoKey = [sender_id, recipient_id].sort().join("_");
+		const convRef = db.collection("instagram_conversations").doc(convoKey);
+		await convRef.update({ interested: state });
+		res.json({ success: true });
+	} catch (err) {
+		res
+			.status(500)
+			.json({ error: err.response?.data?.error?.message || err.message });
+		console.error(err);
+	}
+});
+
+// switch campaign
+router.post("/switch-campaign", authenticateToken, async (req, res) => {
+	try {
+		const { sender_id, recipient_id, campaign_id } = req.body;
+		const convoKey = [sender_id, recipient_id].sort().join("_");
+
+		const campaign_snap = await db
+			.collection("campaigns")
+			.doc(campaign_id)
+			.get();
+		if (!campaign_snap.exists) {
+			return res
+				.status(HTTP_STATUS.NOT_FOUND)
+				.json(createResponse(false, null, "Campaign not found"));
+		}
+
+		const convRef = db.collection("instagram_conversations").doc(convoKey);
+		await convRef.update({
+			campaign_id,
+			context: campaign_snap.data().context,
+		});
+
+		res.json({ success: true });
+	} catch (err) {
+		res
+			.status(500)
+			.json({ error: err.response?.data?.error?.message || err.message });
+		console.error(err);
 	}
 });
 

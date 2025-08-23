@@ -13,6 +13,7 @@ import AdminDashboard from "./components/Dashboard/AdminDashboard";
 import PaymentPortal from "./components/Payment/PaymentPortal";
 import PaymentProcessing from "./components/Payment/PaymentProcessing";
 import Inbox from "./components/Inbox/Inbox";
+import CRM from "./components/CRM/CRM";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
 import Layout from "./components/Layout/Layout";
 import "./styles/globals.css";
@@ -83,6 +84,17 @@ function App() {
 									{/* No padding here */}
 									<Layout withPadding={false}>
 										<Inbox />
+									</Layout>
+								</ProtectedRoute>
+							}
+						/>
+						<Route
+							path="/crm"
+							element={
+								<ProtectedRoute>
+									{/* No padding here */}
+									<Layout withPadding={false}>
+										<CRM />
 									</Layout>
 								</ProtectedRoute>
 							}

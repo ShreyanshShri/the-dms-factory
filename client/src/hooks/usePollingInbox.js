@@ -11,6 +11,7 @@ export default function usePollingInbox(interval = 60_000) {
 	const [activeAccount, setActiveAccount] = useState(null);
 
 	const [conversations, setConversations] = useState([]);
+	const [filteredConversations, setFilteredConversations] = useState([]);
 	const [activeConv, setActiveConv] = useState(null);
 
 	const [messages, setMessages] = useState([]);
@@ -23,6 +24,7 @@ export default function usePollingInbox(interval = 60_000) {
 				console.log("all conversations: ", r);
 				setAccounts(r.accounts);
 				setConversations(r.conversations);
+				setFilteredConversations(r.conversations);
 			})
 			.catch(console.error);
 	}, []);
@@ -96,11 +98,13 @@ export default function usePollingInbox(interval = 60_000) {
 		/* state */
 		accounts,
 		conversations,
+		filteredConversations,
 		messages,
 		activeAccount,
 		activeConv,
 
 		/* setters / helpers */
+		setFilteredConversations,
 		setActiveAccount,
 		setActiveConv,
 		send,

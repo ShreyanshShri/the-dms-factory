@@ -25,4 +25,12 @@ export const chat = {
 	/* Send a DM reply */
 	send: (sender_id, recipient_id, message) =>
 		axiosInstance.post("/chats/send", { sender_id, recipient_id, message }),
+
+	/* Mark a thread as read */
+	setInterested: (sender_id, recipient_id, state) =>
+		axiosInstance.post("/chats/set-interested", {
+			sender_id,
+			recipient_id,
+			state,
+		}),
 };

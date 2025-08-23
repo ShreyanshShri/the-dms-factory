@@ -1,22 +1,84 @@
 import { useState, useRef, useEffect } from "react";
 import InstagramLoginButton from "./InstagramLoginButton";
 import usePollingInbox from "../../hooks/usePollingInbox";
+import { chat } from "../../services/chat";
 import "../../styles/inbox.css";
 
 export default function ChatApp() {
-	const { accounts, conversations, messages, activeConv, setActiveConv, send } =
-		usePollingInbox(); // ← defaults to 60 000 ms
+	const {
+		accounts,
+		conversations,
+		filteredConversations,
+		messages,
+		activeConv,
+		setFilteredConversations,
+		setActiveConv,
+		send,
+	} = usePollingInbox(); // ← defaults to 60 000 ms
 
 	const [draft, setDraft] = useState("");
+	const [searchTerm, setSearchTerm] = useState("");
+	const [selectedAccounts, setSelectedAccounts] = useState([]);
+	const [accountsDropdownOpen, setAccountsDropdownOpen] = useState(false);
+	const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false);
+	const [interested, setInterested] = useState(false);
+	const [loading_interested, setLoading_interested] = useState(false);
 	const messagesEndRef = useRef(null);
 
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messages]);
 
+	useEffect(() => {
+		setInterested(activeConv?.interested);
+	}, [activeConv]);
+
+	useEffect(() => {
+		const _filteredConversations =
+			selectedAccounts.length > 0
+				? conversations.filter((c) =>
+						selectedAccounts.includes(c.businessAccount.id)
+				  )
+				: conversations;
+		setFilteredConversations(_filteredConversations);
+	}, [selectedAccounts]);
+
 	const sendMsg = () => {
 		send(draft);
 		setDraft("");
+	};
+
+	const handleSearch = (e) => {
+		const _searchTerm = e.target.value;
+		setSearchTerm(_searchTerm);
+		setFilteredConversations(
+			conversations.filter((c) =>
+				c?.clientAccount?.username
+					?.toLowerCase()
+					.includes(_searchTerm.toLowerCase())
+			)
+		);
+	};
+
+	const handleInterestedToggle = async () => {
+		setLoading_interested(true);
+		try {
+			await chat.setInterested(
+				activeConv.businessAccount.id,
+				activeConv.clientAccount.id,
+				!interested
+			);
+			setInterested(!interested);
+		} catch (err) {
+			console.error(err);
+		}
+		setLoading_interested(false);
+	};
+
+	const handleSelect = (id) => {
+		setSelectedAccounts((prev) =>
+			prev.includes(id) ? prev.filter((acc) => acc !== id) : [...prev, id]
+		);
 	};
 
 	return (
@@ -28,17 +90,46 @@ export default function ChatApp() {
 					<InstagramLoginButton />
 					<br />
 					<br />
-					{accounts?.map((a) => (
+					{/* {accounts?.map((a) => (
 						<div key={a.user_id} className="thread">
 							<div className="avatar">{a.username?.[0]?.toUpperCase()}</div>
 							<div className="name">{a.username}</div>
 						</div>
-					))}
+					))} */}
+					<div className="dropdown">
+						<button
+							className="dropdown-btn"
+							onClick={() => setAccountsDropdownOpen((prev) => !prev)}
+						>
+							Filter Accounts ⬇
+						</button>
+						{accountsDropdownOpen && (
+							<div className="dropdown-menu">
+								{accounts.map((acc) => (
+									<label key={acc.user_id} className="dropdown-item">
+										<input
+											type="checkbox"
+											checked={selectedAccounts.includes(acc.user_id)}
+											onChange={() => handleSelect(acc.user_id)}
+										/>
+										{acc.username}
+									</label>
+								))}
+							</div>
+						)}
+					</div>
 				</div>
 
 				<div className="sidebar-section">
 					<h3>Inbox</h3>
-					{conversations.map((c) => (
+					<input
+						type="text"
+						placeholder="Search Leads"
+						className="search-input"
+						value={searchTerm}
+						onChange={handleSearch}
+					/>
+					{filteredConversations.map((c) => (
 						<div
 							key={c.id}
 							className={`thread ${
@@ -49,8 +140,16 @@ export default function ChatApp() {
 							<div className="avatar">
 								{c.clientAccount?.username?.[0].toUpperCase()}
 							</div>
-							<div className="name">{c?.clientAccount?.username}</div>
-							{/* <div className="thread-last">{c.last_message}</div> */}
+							<div className="thread-middle-panel">
+								<div className="name">{c?.clientAccount?.username}</div>
+								<div className="thread-last-message">{c.last_message}</div>
+							</div>
+							<div className="thread-right-panel">
+								{c?.unread_count > 0 && (
+									<div className="unread-count">{c.unread_count}</div>
+								)}
+							</div>
+							{/* <div className="thread-last">{c.last_time._seconds}</div> */}
 						</div>
 					))}
 				</div>
@@ -60,10 +159,31 @@ export default function ChatApp() {
 				{activeConv ? (
 					<>
 						<header className="chat-header">
-							@{activeConv.clientAccount.username}
-							<span className="text-muted">
-								from @{activeConv.businessAccount.username}
-							</span>
+							<div className="chat-header-left">
+								@{activeConv.clientAccount.username}
+								<span className="text-muted">
+									from @{activeConv.businessAccount.username}
+								</span>
+							</div>
+							<div className="chat-header-right">
+								<button
+									onClick={() => setSettingsDropdownOpen((prev) => !prev)}
+								>
+									settings
+								</button>
+								{settingsDropdownOpen && (
+									<div className="settings">
+										<div
+											className={`switch ${interested ? "on" : "off"} ${
+												loading_interested ? "switch-loading" : ""
+											}`}
+											onClick={handleInterestedToggle}
+										>
+											<div className="slider" />
+										</div>
+									</div>
+								)}
+							</div>
 						</header>
 						<section className="messages">
 							{messages?.map((m, i) => (

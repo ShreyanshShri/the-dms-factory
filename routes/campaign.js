@@ -31,6 +31,7 @@ router.post("/create", async (req, res) => {
 			autoLikeStory,
 			autoLikeNewestPost,
 			tag,
+			context,
 		} = req.body;
 
 		const missingFields = validateRequiredFields(req.body, [
@@ -125,6 +126,7 @@ router.post("/create", async (req, res) => {
 			variants: variants.map((variant) => ({
 				message: variant.message.trim(),
 			})),
+			context: context?.trim() || "",
 			workingHours: workingHours || { start: 0, end: 24 },
 			messageLimits: messageLimits || { min: 35, max: 41 },
 			followUser: followUser || false,
@@ -1024,6 +1026,7 @@ router.put("/:campaignId", async (req, res) => {
 			autoLikeStory,
 			autoLikeNewestPost,
 			tag,
+			context,
 		} = req.body;
 
 		if (!campaignId) {
@@ -1055,6 +1058,7 @@ router.put("/:campaignId", async (req, res) => {
 				tag: tag?.trim() || existingCampaign.tag,
 				workingHours: workingHours || existingCampaign.workingHours,
 				messageLimits: messageLimits || existingCampaign.messageLimits,
+				context: context?.trim() || "",
 				followUser:
 					followUser !== undefined ? followUser : existingCampaign.followUser,
 				autoLikeStory:
@@ -1090,6 +1094,7 @@ router.put("/:campaignId", async (req, res) => {
 		};
 
 		if (name) updateData.name = name.trim();
+		if (context) updateData.context = context.trim();
 		if (description) updateData.description = description.trim();
 		if (tag) updateData.tag = tag.trim();
 		if (platform && ["instagram", "twitter"].includes(platform)) {
