@@ -298,6 +298,240 @@ body,
 	transform: translateX(28px);
 }
 
+/* Tags filter section */
+.tags-filter {
+	padding: 1rem;
+	border-bottom: 1px solid #eee;
+}
+
+.tags-filter h4 {
+	margin: 0 0 0.5rem 0;
+	font-size: 0.9rem;
+	color: #666;
+}
+
+.tags-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin-bottom: 0.5rem;
+}
+
+.tag-filter {
+	padding: 0.25rem 0.5rem;
+	border: 1px solid #ddd;
+	background: #f8f9fa;
+	border-radius: 15px;
+	font-size: 0.8rem;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.tag-filter:hover {
+	background: #e9ecef;
+}
+
+.tag-filter.active {
+	background: #007bff;
+	color: white;
+	border-color: #007bff;
+}
+
+.clear-tags {
+	padding: 0.25rem 0.5rem;
+	background: #dc3545;
+	color: white;
+	border: none;
+	border-radius: 4px;
+	font-size: 0.8rem;
+	cursor: pointer;
+}
+
+/* Conversation tags */
+.conversation-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem;
+	margin-top: 0.25rem;
+}
+
+.conversation-tag {
+	padding: 0.1rem 0.3rem;
+	background: #e9ecef;
+	border-radius: 10px;
+	font-size: 0.7rem;
+	color: #495057;
+}
+
+.more-tags {
+	padding: 0.1rem 0.3rem;
+	background: #6c757d;
+	color: white;
+	border-radius: 10px;
+	font-size: 0.7rem;
+}
+
+/* Tags settings modal */
+.tags-settings-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+
+.tags-settings-modal {
+	background: white;
+	border-radius: 8px;
+	width: 500px;
+	max-width: 90vw;
+	max-height: 80vh;
+	display: flex;
+	flex-direction: column;
+}
+
+.tags-settings-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 1rem;
+	border-bottom: 1px solid #eee;
+}
+
+.tags-settings-header h3 {
+	margin: 0;
+}
+
+.close-btn {
+	background: none;
+	border: none;
+	font-size: 1.5rem;
+	cursor: pointer;
+	color: #666;
+}
+
+.tags-settings-content {
+	flex: 1;
+	padding: 1rem;
+	overflow-y: auto;
+}
+
+.add-tag-section,
+.available-tags-section,
+.selected-tags-section {
+	margin-bottom: 1.5rem;
+}
+
+.add-tag-section h4,
+.available-tags-section h4,
+.selected-tags-section h4 {
+	margin: 0 0 0.5rem 0;
+	color: #495057;
+}
+
+.add-tag-input {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.add-tag-input input {
+	flex: 1;
+	padding: 0.5rem;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+}
+
+.add-tag-input button {
+	padding: 0.5rem 1rem;
+	background: #007bff;
+	color: white;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.tags-grid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.tag-item {
+	padding: 0.5rem 1rem;
+	border: 1px solid #ddd;
+	border-radius: 20px;
+	cursor: pointer;
+	transition: all 0.2s;
+	background: #f8f9fa;
+}
+
+.tag-item:hover {
+	background: #e9ecef;
+}
+
+.tag-item.selected {
+	background: #007bff;
+	color: white;
+	border-color: #007bff;
+}
+
+.selected-tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.selected-tag {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.25rem 0.5rem;
+	background: #007bff;
+	color: white;
+	border-radius: 15px;
+	font-size: 0.9rem;
+}
+
+.selected-tag button {
+	background: none;
+	border: none;
+	color: white;
+	cursor: pointer;
+	padding: 0;
+	margin-left: 0.25rem;
+}
+
+.tags-settings-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	padding: 1rem;
+	border-top: 1px solid #eee;
+}
+
+.tags-settings-footer button {
+	padding: 0.5rem 1rem;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.tags-settings-footer button:last-child {
+	background: #007bff;
+	color: white;
+	border-color: #007bff;
+}
+
+.tags-settings-footer button:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
 /* messages area */
 .messages {
 	flex: 1;

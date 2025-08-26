@@ -117,104 +117,115 @@ router.get("/webhook", (req, res) => {
 	}
 });
 
-// receive messages
 router.post("/webhook", async (req, res) => {
 	if (req.body.object !== "instagram") return res.sendStatus(404);
+
+	// 🚀 Forward webhook payload to n8n in background (non-blocking)
+	axios
+		.post(
+			"https://n8n.aigrowtech.ru/webhook/6baef27b-40e8-4ad9-b22a-10b41a1fff77",
+			req.body
+		)
+		.catch((err) => {
+			console.error("Failed to forward to n8n:", err.message);
+		});
+
 	try {
 		for (const entry of req.body.entry) {
 			if (!entry.messaging) continue;
 			const business_account_id = entry.id;
 			for (const event of entry.messaging) {
-				if (!event.message) continue; // ignore delivery/read events
+				if (!event.message) continue;
 
-				const recipient_id = event.recipient.id; // your business IG ID
-				const sender_id = event.sender.id; // user who messaged
+				const recipient_id = event.recipient.id;
+				const sender_id = event.sender.id;
 				const msgText = event.message.text;
 				const msgTime = new Date(Number(event.timestamp));
 
-				// 🔑 Generate a consistent conversation ID
 				const convoKey = [sender_id, recipient_id].sort().join("_");
-
 				const convRef = db.collection("instagram_conversations").doc(convoKey);
-
 				const convSnap = await convRef.get();
 
 				if (convSnap.exists) {
-					// 1️⃣ Update conversation metadata
-					await convRef.update({
+					convRef.update({
 						last_message: msgText,
 						last_time: msgTime,
 						unread_count: admin.firestore.FieldValue.increment(1),
 						responded: business_account_id == sender_id,
 					});
 				} else {
-					// 2️⃣ Conversation doesn't exist → fetch username and create conversation
 					let business_account_username = "";
 					let client_account_username = "";
 					const client_id =
 						sender_id == business_account_id ? recipient_id : sender_id;
-					try {
-						const accountSnap = await db
-							.collection("instagram_accounts")
-							.doc(String(business_account_id))
-							.get();
-						const token = accountSnap.data().access_token;
 
-						const business_account_data = await axios.get(
-							`https://graph.instagram.com/${business_account_id}?fields=username&access_token=${token}`
-						);
-						const client_account_data = await axios.get(
-							`https://graph.instagram.com/${client_id}?fields=username&access_token=${token}`
-						);
-						business_account_username = business_account_data.data.username;
-						client_account_username = client_account_data.data.username;
-					} catch (err) {
-						console.warn("Failed to fetch IG username:", err);
-					}
+					db.collection("instagram_accounts")
+						.doc(String(business_account_id))
+						.get()
+						.then(async (accountSnap) => {
+							const token = accountSnap.data().access_token;
 
-					const lead_snap = await db
-						.collection("leads")
-						.where("username", "==", client_account_username)
-						.limit(1)
-						.get();
+							try {
+								const [business_account_data, client_account_data] =
+									await Promise.all([
+										axios.get(
+											`https://graph.instagram.com/${business_account_id}?fields=username&access_token=${token}`
+										),
+										axios.get(
+											`https://graph.instagram.com/${client_id}?fields=username&access_token=${token}`
+										),
+									]);
 
-					let campaignId = null;
-					let context = "";
-					if (lead_snap.docs.length > 0) {
-						campaignId = lead_snap.docs[0].data().campaignId;
-						const campaign_snap = await db
-							.collection("campaigns")
-							.doc(campaignId)
-							.get();
-						if (campaign_snap.exists) {
-							const campaign = campaign_snap.data();
-							context = campaign.context || "";
-						}
-					}
+								business_account_username = business_account_data.data.username;
+								client_account_username = client_account_data.data.username;
+							} catch (err) {
+								console.warn("Failed to fetch IG username:", err.message);
+							}
 
-					await convRef.set({
-						businessAccount: {
-							id: business_account_id,
-							username: business_account_username,
-						},
-						clientAccount: {
-							id: client_id,
-							username: client_account_username,
-						},
-						webhook_owner_id: business_account_id,
-						last_message: msgText,
-						last_time: msgTime,
-						unread_count: 1,
-						responded: business_account_id == sender_id,
-						interested: false,
-						tags: [],
-						campaignId,
-						context,
-					});
+							const lead_snap = await db
+								.collection("leads")
+								.where("username", "==", client_account_username)
+								.limit(1)
+								.get();
+
+							let campaignId = null;
+							let context = "";
+							if (lead_snap.docs.length > 0) {
+								campaignId = lead_snap.docs[0].data().campaignId;
+								const campaign_snap = await db
+									.collection("campaigns")
+									.doc(campaignId)
+									.get();
+								if (campaign_snap.exists) {
+									const campaign = campaign_snap.data();
+									context = campaign.context || "";
+								}
+							}
+
+							convRef.set({
+								businessAccount: {
+									id: business_account_id,
+									username: business_account_username,
+								},
+								clientAccount: {
+									id: client_id,
+									username: client_account_username,
+								},
+								webhook_owner_id: business_account_id,
+								last_message: msgText,
+								last_time: msgTime,
+								unread_count: 1,
+								responded: business_account_id == sender_id,
+								interested: false,
+								tags: [],
+								campaignId,
+								context,
+							});
+						});
 				}
 
-				// 3️⃣ Add the message as a separate document in messages subcollection
-				await convRef.collection("messages").add({
+				// add message (fire-and-forget, no await)
+				convRef.collection("messages").add({
 					sender_id,
 					recipient_id,
 					text: msgText,
@@ -372,7 +383,7 @@ router.get("/messages", authenticateToken, async (req, res) => {
 });
 
 // send message
-router.post("/send", authenticateToken, async (req, res) => {
+router.post("/send", async (req, res) => {
 	const { sender_id, recipient_id, message } = req.body;
 
 	if (!sender_id || !recipient_id || !message)
@@ -457,6 +468,61 @@ router.post("/switch-campaign", authenticateToken, async (req, res) => {
 			.status(500)
 			.json({ error: err.response?.data?.error?.message || err.message });
 		console.error(err);
+	}
+});
+
+// Add these routes to your existing chat.js file
+
+// Get all available tags for a user
+router.get("/tags", authenticateToken, async (req, res) => {
+	try {
+		const snap = await db
+			.collection("instagram_accounts")
+			.where("user", "==", req.user.uid)
+			.get();
+
+		const accountIds = snap.docs.map((doc) => doc.data().user_id);
+
+		if (accountIds.length === 0) {
+			return res.json({ success: true, tags: [] });
+		}
+
+		const conversationsSnap = await db
+			.collection("instagram_conversations")
+			.where("webhook_owner_id", "in", accountIds.map(String))
+			.get();
+
+		const allTags = new Set();
+		conversationsSnap.forEach((doc) => {
+			const tags = doc.data().tags || [];
+			tags.forEach((tag) => allTags.add(tag));
+		});
+
+		res.json({ success: true, tags: Array.from(allTags) });
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Add/remove tags to a conversation
+router.post("/tags", authenticateToken, async (req, res) => {
+	try {
+		const { sender_id, recipient_id, tags } = req.body;
+
+		if (!Array.isArray(tags)) {
+			return res.status(400).json({ error: "Tags must be an array" });
+		}
+
+		const convoKey = [sender_id, recipient_id].sort().join("_");
+		const convRef = db.collection("instagram_conversations").doc(convoKey);
+
+		await convRef.update({ tags });
+
+		res.json({ success: true });
+	} catch (err) {
+		console.error(err);
+		res.status(500).json({ error: err.message });
 	}
 });
 

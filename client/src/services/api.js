@@ -84,6 +84,16 @@ export const campaignAPI = {
 			`/campaign/pause-all?campaignId=${campaignID}`
 		);
 	},
+
+	getAnalytics: async (params) => {
+		const queryString = new URLSearchParams(params).toString();
+		return await axiosInstance.get(`/campaign/analytics?${queryString}`);
+	},
+
+	getTrend: async (params) => {
+		const qs = new URLSearchParams(params).toString();
+		return await axiosInstance.get(`/campaign/analytics/trend?${qs}`);
+	},
 };
 
 export const accountAPI = {

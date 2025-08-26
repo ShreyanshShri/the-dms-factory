@@ -2,12 +2,48 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { campaignAPI } from "../../services/api";
 import "../../styles/campaignInfo.css";
+import {
+	Chart as ChartJS,
+	CategoryScale,
+	LinearScale,
+	PointElement,
+	LineElement,
+	Title,
+	Tooltip,
+	Legend,
+} from "chart.js";
+import { Line } from "react-chartjs-2";
+
+ChartJS.register(
+	CategoryScale,
+	LinearScale,
+	PointElement,
+	LineElement,
+	Title,
+	Tooltip,
+	Legend
+);
 
 const CampaignInfo = () => {
 	const { campaignId } = useParams();
 	const [campaign, setCampaign] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
+	const [dmTrend, setDmTrend] = useState(null);
+	const fetchTrend = async () => {
+		try {
+			const res = await campaignAPI.getTrend({
+				campaignID: campaignId,
+				timeframe: "week",
+			});
+			setDmTrend(res);
+		} catch (e) {
+			console.error("trend error", e);
+		}
+	};
+	useEffect(() => {
+		if (campaignId && campaign) fetchTrend();
+	}, [campaignId, campaign]);
 
 	useEffect(() => {
 		window.scrollTo({ top: 0 });
@@ -18,12 +54,8 @@ const CampaignInfo = () => {
 			try {
 				setLoading(true);
 				const response = await campaignAPI.getCampaignById(campaignId);
-
-				if (response.success) {
-					setCampaign(response.data);
-				} else {
-					setError(response.message || "Failed to fetch campaign data");
-				}
+				console.log(response.data);
+				setCampaign(response.data);
 			} catch (error) {
 				console.error("Error fetching campaign:", error);
 				setError(
@@ -77,6 +109,47 @@ const CampaignInfo = () => {
 			console.error("Error deleting campaign:", error);
 		}
 	};
+
+	// Add this state and function before the return statement in CampaignInfo component
+	const [analyticsData, setAnalyticsData] = useState({
+		today: null,
+		week: null,
+		month: null,
+	});
+	const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+	// Add this function to fetch analytics
+	const fetchAnalytics = async () => {
+		try {
+			setAnalyticsLoading(true);
+
+			const timeframes = ["today", "week", "month"];
+			const promises = timeframes.map((timeframe) =>
+				campaignAPI.getAnalytics({ campaignID: campaignId, timeframe })
+			);
+
+			const responses = await Promise.all(promises);
+
+			const analytics = {
+				today: responses[0].success ? responses[0] : null,
+				week: responses[1].success ? responses[1] : null,
+				month: responses[2].success ? responses[2] : null,
+			};
+
+			setAnalyticsData(analytics);
+		} catch (error) {
+			console.error("Error fetching analytics:", error);
+		} finally {
+			setAnalyticsLoading(false);
+		}
+	};
+
+	// Add this useEffect to fetch analytics when component loads
+	useEffect(() => {
+		if (campaignId && campaign) {
+			fetchAnalytics();
+		}
+	}, [campaignId, campaign]);
 
 	if (loading) {
 		return (
@@ -306,8 +379,150 @@ const CampaignInfo = () => {
 					</div>
 				</div>
 			</div>
+			<AnalyticsSection
+				analyticsData={analyticsData}
+				setAnalyticsData={setAnalyticsData}
+				analyticsLoading={analyticsLoading}
+			/>
+			<div className="campaign-info-card campaign-chart-container">
+				<h2>📈 DMs Sent (Last 7 Days)</h2>
+
+				{dmTrend ? (
+					<Line
+						data={{
+							labels: dmTrend.labels,
+							datasets: [
+								{
+									label: "DMs sent",
+									data: dmTrend.counts,
+									borderColor: "#e1306c",
+									backgroundColor: "rgba(225,48,108,0.2)",
+									tension: 0.3,
+									fill: true,
+									pointRadius: 4,
+								},
+							],
+						}}
+						options={{
+							responsive: true,
+							plugins: { legend: { display: false } },
+							scales: {
+								y: { beginAtZero: true, ticks: { precision: 0 } },
+							},
+						}}
+					/>
+				) : (
+					<div style={{ textAlign: "center", padding: "20px" }}>
+						Loading chart…
+					</div>
+				)}
+			</div>
 		</div>
 	);
 };
+
+// Add this component for the analytics section (add before the final return)
+const AnalyticsSection = ({
+	analyticsData,
+	setAnalyticsData,
+	analyticsLoading,
+}) => (
+	<div className="campaign-info-card">
+		<h2>📊 Analytics Overview</h2>
+
+		{analyticsLoading ? (
+			<div style={{ textAlign: "center", padding: "20px" }}>
+				Loading analytics...
+			</div>
+		) : (
+			<>
+				<div
+					className="campaign-stats-grid"
+					style={{
+						gridTemplateColumns: "repeat(3, 1fr)",
+						marginBottom: "24px",
+					}}
+				>
+					<div className="campaign-stat-item">
+						<div className="campaign-stat-value">
+							{analyticsData.today?.totalMessagesSent || 0}
+						</div>
+						<div className="campaign-stat-label">Messages Today</div>
+					</div>
+					<div className="campaign-stat-item">
+						<div className="campaign-stat-value">
+							{analyticsData.week?.totalMessagesSent || 0}
+						</div>
+						<div className="campaign-stat-label">Messages This Week</div>
+					</div>
+					<div className="campaign-stat-item">
+						<div className="campaign-stat-value">
+							{analyticsData.month?.totalMessagesSent || 0}
+						</div>
+						<div className="campaign-stat-label">Messages This Month</div>
+					</div>
+				</div>
+
+				<div
+					className="campaign-stats-grid"
+					style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
+				>
+					<div className="campaign-stat-item">
+						<div
+							className="campaign-stat-value"
+							style={{ color: "var(--success-color)" }}
+						>
+							{analyticsData.today?.leadConversionRate || 0}%
+						</div>
+						<div className="campaign-stat-label">Conversion Rate Today</div>
+					</div>
+					<div className="campaign-stat-item">
+						<div
+							className="campaign-stat-value"
+							style={{ color: "var(--success-color)" }}
+						>
+							{analyticsData.week?.leadConversionRate || 0}%
+						</div>
+						<div className="campaign-stat-label">Conversion Rate This Week</div>
+					</div>
+					<div className="campaign-stat-item">
+						<div
+							className="campaign-stat-value"
+							style={{ color: "var(--success-color)" }}
+						>
+							{analyticsData.month?.leadConversionRate || 0}%
+						</div>
+						<div className="campaign-stat-label">
+							Conversion Rate This Month
+						</div>
+					</div>
+				</div>
+
+				<div
+					style={{
+						marginTop: "20px",
+						padding: "16px",
+						background: "var(--bg-tertiary)",
+						borderRadius: "var(--radius)",
+					}}
+				>
+					<div
+						style={{
+							fontSize: "14px",
+							color: "var(--text-secondary)",
+							marginBottom: "8px",
+						}}
+					>
+						<strong>This Month Summary:</strong>
+					</div>
+					<div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+						{analyticsData.month?.convertedLeads || 0} out of{" "}
+						{analyticsData.month?.totalLeads || 0} leads successfully contacted
+					</div>
+				</div>
+			</>
+		)}
+	</div>
+);
 
 export default CampaignInfo;

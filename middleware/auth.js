@@ -35,9 +35,7 @@ const authenticateToken = async (req, res, next) => {
 };
 
 const generateToken = (uid) => {
-	return jwt.sign({ uid, iat: Math.floor(Date.now() / 1000) }, JWT_SECRET, {
-		expiresIn: "7d",
-	});
+	return jwt.sign({ uid, iat: Math.floor(Date.now() / 1000) }, JWT_SECRET);
 };
 
 module.exports = { authenticateToken, generateToken };

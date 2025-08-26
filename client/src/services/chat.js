@@ -33,4 +33,11 @@ export const chat = {
 			recipient_id,
 			state,
 		}),
+
+	/* Get all tags for the user */
+	getTags: () => axiosInstance.get("/chats/tags"),
+
+	/* Update tags for a conversation */
+	updateTags: (sender_id, recipient_id, tags) =>
+		axiosInstance.post("/chats/tags", { sender_id, recipient_id, tags }),
 };

@@ -1,20 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
-import { chat } from "../services/chat"; // the wrapper that calls your /chats/* routes
+import { chat } from "../services/chat";
 
-/**
- * Polls the backend every `interval` ms.
- * Returns state + helpers for Accounts ▸ Conversations ▸ Messages.
- */
 export default function usePollingInbox(interval = 60_000) {
 	/* ─── state ─── */
 	const [accounts, setAccounts] = useState([]);
 	const [activeAccount, setActiveAccount] = useState(null);
-
 	const [conversations, setConversations] = useState([]);
 	const [filteredConversations, setFilteredConversations] = useState([]);
 	const [activeConv, setActiveConv] = useState(null);
-
 	const [messages, setMessages] = useState([]);
+	const [selectedTags, setSelectedTags] = useState([]);
+	const [allTags, setAllTags] = useState([]);
 
 	/* ─── load IG accounts once ─── */
 	useEffect(() => {
@@ -25,6 +21,14 @@ export default function usePollingInbox(interval = 60_000) {
 				setAccounts(r.accounts);
 				setConversations(r.conversations);
 				setFilteredConversations(r.conversations);
+			})
+			.catch(console.error);
+
+		// Load all available tags
+		chat
+			.getTags()
+			.then((response) => {
+				setAllTags(response.tags || []);
 			})
 			.catch(console.error);
 	}, []);
@@ -50,12 +54,29 @@ export default function usePollingInbox(interval = 60_000) {
 		return () => clearInterval(id);
 	}, [activeConv, interval]);
 
+	/* ─── filter conversations by tags ─── */
+	const applyTagFilter = useCallback(() => {
+		let filtered = conversations;
+
+		if (selectedTags.length > 0) {
+			filtered = conversations.filter((conv) => {
+				const convTags = conv.tags || [];
+				return selectedTags.some((tag) => convTags.includes(tag));
+			});
+		}
+
+		setFilteredConversations(filtered);
+	}, [conversations, selectedTags]);
+
+	useEffect(() => {
+		applyTagFilter();
+	}, [applyTagFilter]);
+
 	/* ─── send a reply then refresh the thread immediately ─── */
 	const send = useCallback(
 		async (text) => {
 			if (!activeConv || !text.trim()) return;
 
-			// 1️⃣ Create a local optimistic message
 			const optimisticMsg = {
 				recipient_id: activeConv.clientAccount.id,
 				sender_id: activeConv.businessAccount.id,
@@ -67,14 +88,12 @@ export default function usePollingInbox(interval = 60_000) {
 			setMessages((prev) => [...prev, optimisticMsg]);
 
 			try {
-				// 2️⃣ Send to server
 				await chat.send(
 					activeConv.businessAccount.id,
 					activeConv.clientAccount.id,
 					text
 				);
 
-				// 3️⃣ Fetch updated messages (or just replace pending one with confirmed one)
 				const r = await chat.messages(
 					activeConv.businessAccount.id,
 					activeConv.clientAccount.id,
@@ -82,13 +101,27 @@ export default function usePollingInbox(interval = 60_000) {
 				);
 				setMessages(r.messages);
 			} catch (err) {
-				// 4️⃣ Mark as failed if request fails
 				setMessages((prev) =>
 					prev.map((m) =>
 						m === optimisticMsg ? { ...m, pending: false, failed: true } : m
 					)
 				);
 				console.error(err);
+			}
+		},
+		[activeConv]
+	);
+
+	const updateConversationTags = useCallback(
+		(conversationId, newTags) => {
+			setConversations((prev) =>
+				prev.map((conv) =>
+					conv.id === conversationId ? { ...conv, tags: newTags } : conv
+				)
+			);
+
+			if (activeConv && activeConv.id === conversationId) {
+				setActiveConv((prev) => ({ ...prev, tags: newTags }));
 			}
 		},
 		[activeConv]
@@ -102,11 +135,15 @@ export default function usePollingInbox(interval = 60_000) {
 		messages,
 		activeAccount,
 		activeConv,
+		selectedTags,
+		allTags,
 
 		/* setters / helpers */
 		setFilteredConversations,
 		setActiveAccount,
 		setActiveConv,
+		setSelectedTags,
+		updateConversationTags,
 		send,
 	};
 }

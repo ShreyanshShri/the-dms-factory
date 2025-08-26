@@ -941,6 +941,189 @@ router.post("/analytics", async (req, res) => {
 	}
 });
 
+router.get("/analytics", async (req, res) => {
+	try {
+		const { campaignID, accountID, timeframe = "today" } = req.query;
+
+		// Calculate date ranges
+		const now = new Date();
+		let startDate, endDate;
+
+		switch (timeframe) {
+			case "today":
+				startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+				endDate = new Date(
+					now.getFullYear(),
+					now.getMonth(),
+					now.getDate() + 1
+				);
+				break;
+			case "week":
+				const weekStart = new Date(now);
+				weekStart.setDate(now.getDate() - now.getDay());
+				weekStart.setHours(0, 0, 0, 0);
+				startDate = weekStart;
+				endDate = new Date();
+				break;
+			case "month":
+				startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+				endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+				break;
+			default:
+				startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+				endDate = new Date(
+					now.getFullYear(),
+					now.getMonth(),
+					now.getDate() + 1
+				);
+		}
+
+		const startTimestamp = startDate.getTime();
+		const endTimestamp = endDate.getTime();
+
+		// Build query conditions
+		let analyticsQuery = db
+			.collection("analytics")
+			.where("createdAt", ">=", startTimestamp)
+			.where("createdAt", "<", endTimestamp);
+
+		let leadsQuery = db.collection("leads");
+
+		if (campaignID) {
+			analyticsQuery = analyticsQuery.where("campaignID", "==", campaignID);
+			leadsQuery = leadsQuery.where("campaignID", "==", campaignID);
+		}
+
+		if (accountID) {
+			analyticsQuery = analyticsQuery.where("accountID", "==", accountID);
+			leadsQuery = leadsQuery.where("accountID", "==", accountID);
+		}
+
+		// Get analytics data
+		const analyticsSnapshot = await analyticsQuery.get();
+		const analyticsData = analyticsSnapshot.docs.map((doc) => doc.data());
+
+		// Calculate total messages sent
+		const totalMessagesSent = analyticsData.filter(
+			(record) =>
+				record.status === "initialdmsent" || record.status === "followup"
+		).length;
+
+		// Get leads data for conversion rate calculation
+		const leadsSnapshot = await leadsQuery.get();
+		const leadsData = leadsSnapshot.docs.map((doc) => doc.data());
+
+		// Calculate lead conversion rate
+		const totalLeads = leadsData.length;
+		const convertedLeads = leadsData.filter(
+			(lead) =>
+				lead.status === "initialdmsent" ||
+				lead.status === "followup" ||
+				lead.sent === true
+		).length;
+
+		const conversionRate =
+			totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(2) : 0;
+
+		// Get messages by status for detailed breakdown
+		const messagesByStatus = {
+			initialdmsent: analyticsData.filter(
+				(record) => record.status === "initialdmsent"
+			).length,
+			followup: analyticsData.filter((record) => record.status === "followup")
+				.length,
+			unknown: analyticsData.filter((record) => record.status === "unknown")
+				.length,
+		};
+
+		// Get messages by platform
+		const messagesByPlatform = {
+			instagram: analyticsData.filter(
+				(record) => record.platform === "instagram"
+			).length,
+			twitter: analyticsData.filter((record) => record.platform === "twitter")
+				.length,
+		};
+
+		const response = {
+			success: true,
+			data: {
+				timeframe,
+				period: {
+					start: startDate.toISOString(),
+					end: endDate.toISOString(),
+				},
+				totalMessagesSent,
+				leadConversionRate: parseFloat(conversionRate),
+				totalLeads,
+				convertedLeads,
+				messagesByStatus,
+				messagesByPlatform,
+				campaignID: campaignID || "all",
+				accountID: accountID || "all",
+			},
+		};
+
+		res.json(response);
+	} catch (error) {
+		console.error("Error fetching analytics:", error);
+		res.status(500).json({
+			success: false,
+			message: "Failed to fetch analytics data",
+		});
+	}
+});
+
+// routes/analytics.js  (append below your /analytics POST + GET)
+router.get("/analytics/trend", async (req, res) => {
+	try {
+		const { campaignID, accountID, timeframe = "week" } = req.query;
+
+		// ----- date window -----
+		const now = new Date();
+		const days = timeframe === "today" ? 1 : timeframe === "week" ? 7 : 31; // month = max 31
+		const start = new Date(now);
+		start.setDate(now.getDate() - (days - 1));
+		start.setHours(0, 0, 0, 0);
+
+		// ----- query -----
+		let q = db
+			.collection("analytics")
+			.where("createdAt", ">=", start.getTime())
+			.where("createdAt", "<", now.getTime())
+			.where("status", "in", ["initialdmsent", "followup"]); // only real DMs
+
+		if (campaignID) q = q.where("campaignID", "==", campaignID);
+		if (accountID) q = q.where("accountID", "==", accountID);
+
+		const snap = await q.get();
+
+		// ----- group by day -----
+		const counts = Array(days).fill(0); // index 0 = oldest day
+		const labels = Array(days)
+			.fill("")
+			.map((_, i) => {
+				const d = new Date(start);
+				d.setDate(start.getDate() + i);
+				return d.toLocaleDateString("en-US", {
+					month: "short",
+					day: "numeric",
+				});
+			});
+
+		snap.forEach((doc) => {
+			const d = new Date(doc.data().createdAt);
+			const idx = Math.floor((d - start) / 86400000); // ms per day
+			if (idx >= 0 && idx < days) counts[idx] += 1;
+		});
+
+		return res.json({ success: true, data: { labels, counts, timeframe } });
+	} catch (err) {
+		console.error("trend-analytics", err);
+		res.status(500).json({ success: false, message: "Trend fetch failed" });
+	}
+});
+
 // GET /api/v1/campaign/:campaignId - Get single campaign by ID
 router.get("/:campaignId", async (req, res) => {
 	try {
