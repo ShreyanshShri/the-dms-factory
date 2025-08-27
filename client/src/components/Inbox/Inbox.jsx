@@ -182,7 +182,7 @@ export default function ChatApp() {
 							onClick={() => setActiveConv(c)}
 						>
 							<div className="avatar">
-								{c.clientAccount?.username?.[0].toUpperCase()}
+								{c.clientAccount?.username?.[0]?.toUpperCase()}
 							</div>
 							<div className="thread-middle-panel">
 								<div className="name">{c?.clientAccount?.username}</div>
