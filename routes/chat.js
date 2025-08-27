@@ -120,16 +120,6 @@ router.get("/webhook", (req, res) => {
 router.post("/webhook", async (req, res) => {
 	if (req.body.object !== "instagram") return res.sendStatus(404);
 
-	// 🚀 Forward webhook payload to n8n in background (non-blocking)
-	axios
-		.post(
-			"https://n8n.aigrowtech.ru/webhook/6baef27b-40e8-4ad9-b22a-10b41a1fff77",
-			req.body
-		)
-		.catch((err) => {
-			console.error("Failed to forward to n8n:", err.message);
-		});
-
 	try {
 		for (const entry of req.body.entry) {
 			if (!entry.messaging) continue;
@@ -141,6 +131,17 @@ router.post("/webhook", async (req, res) => {
 				const sender_id = event.sender.id;
 				const msgText = event.message.text;
 				const msgTime = new Date(Number(event.timestamp));
+
+				if (business_account_id !== sender_id) {
+					axios
+						.post(
+							"https://n8n.aigrowtech.ru/webhook/6baef27b-40e8-4ad9-b22a-10b41a1fff77",
+							req.body
+						)
+						.catch((err) => {
+							console.error("Failed to forward to n8n:", err.message);
+						});
+				}
 
 				const convoKey = [sender_id, recipient_id].sort().join("_");
 				const convRef = db.collection("instagram_conversations").doc(convoKey);
