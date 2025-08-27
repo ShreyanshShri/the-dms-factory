@@ -91,7 +91,7 @@ router.get("/callback", async (req, res) => {
 		res.redirect(URL);
 	} catch (err) {
 		console.error("OAuth flow failed:", err.response?.data || err.message);
-		res.status(500).json({ error: "Instagram login failed" });
+		res.status(500).json({ error: "Instagram login failed", err });
 	}
 });
 
