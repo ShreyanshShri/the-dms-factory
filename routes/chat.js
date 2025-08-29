@@ -117,6 +117,96 @@ router.get("/webhook", (req, res) => {
 	}
 });
 
+// Store active timers for each conversation
+const conversationTimers = new Map();
+
+// Function to send webhook after delay
+async function sendConversationWebhook(convoKey, business_account_id) {
+	try {
+		// Query messages from Firestore
+		const convRef = db.collection("instagram_conversations").doc(convoKey);
+		const messagesSnapshot = await convRef
+			.collection("messages")
+			.orderBy("timestamp", "asc")
+			.get();
+
+		if (messagesSnapshot.empty) {
+			console.log("No messages found for conversation:", convoKey);
+			return;
+		}
+
+		// Get conversation details
+		const convSnap = await convRef.get();
+		if (!convSnap.exists) {
+			console.log("Conversation document not found:", convoKey);
+			return;
+		}
+
+		const convData = convSnap.data();
+		const businessAccountId = convData.businessAccount.id;
+		const clientAccountId = convData.clientAccount.id;
+
+		// Format messages as "My msg: ... Prospect: ..." format
+		let formattedConversation = "";
+
+		messagesSnapshot.docs.forEach((doc) => {
+			const messageData = doc.data();
+			const isBusinessMessage = messageData.sender_id === businessAccountId;
+
+			const label = isBusinessMessage ? "My msg" : "Prospect";
+			formattedConversation += `${label}: ${messageData.text}\n`;
+		});
+
+		// Send to n8n webhook
+		await axios.post(
+			"https://n8n.aigrowtech.ru/webhook/6baef27b-40e8-4ad9-b22a-10b41a1fff77",
+			{
+				conversation_key: convoKey,
+				business_account_id: businessAccountId,
+				client_account_id: clientAccountId,
+				formatted_conversation: formattedConversation.trim(),
+				timestamp: new Date().toISOString(),
+			}
+		);
+
+		console.log("Conversation sent to n8n webhook:", {
+			conversation_key: convoKey,
+			business_account_id: businessAccountId,
+			client_account_id: clientAccountId,
+			formatted_conversation: formattedConversation.trim(),
+			timestamp: new Date().toISOString(),
+		});
+	} catch (error) {
+		console.error("Failed to send conversation webhook:", error.message);
+	} finally {
+		// Clean up the timer reference
+		conversationTimers.delete(convoKey);
+	}
+}
+
+// Function to schedule or reschedule webhook
+function scheduleConversationWebhook(convoKey, business_account_id, sender_id) {
+	// Only schedule for messages FROM prospects (not business account)
+	if (sender_id === business_account_id) {
+		return; // Don't schedule webhook for business account messages
+	}
+
+	// Clear existing timer if it exists
+	if (conversationTimers.has(convoKey)) {
+		clearTimeout(conversationTimers.get(convoKey));
+		console.log("Cleared existing timer for:", convoKey);
+	}
+
+	// Set new 5-minute timer
+	const timer = setTimeout(() => {
+		sendConversationWebhook(convoKey, business_account_id);
+	}, 5 * 60 * 1000); // 5 minutes in milliseconds
+
+	conversationTimers.set(convoKey, timer);
+	console.log("Scheduled webhook for conversation:", convoKey);
+}
+
+// Updated webhook handler
 router.post("/webhook", async (req, res) => {
 	if (req.body.object !== "instagram") return res.sendStatus(404);
 
@@ -124,6 +214,7 @@ router.post("/webhook", async (req, res) => {
 		for (const entry of req.body.entry) {
 			if (!entry.messaging) continue;
 			const business_account_id = entry.id;
+
 			for (const event of entry.messaging) {
 				if (!event.message) continue;
 
@@ -131,17 +222,6 @@ router.post("/webhook", async (req, res) => {
 				const sender_id = event.sender.id;
 				const msgText = event.message.text;
 				const msgTime = new Date(Number(event.timestamp));
-
-				if (business_account_id !== sender_id) {
-					axios
-						.post(
-							"https://n8n.aigrowtech.ru/webhook/6baef27b-40e8-4ad9-b22a-10b41a1fff77",
-							req.body
-						)
-						.catch((err) => {
-							console.error("Failed to forward to n8n:", err.message);
-						});
-				}
 
 				const convoKey = [sender_id, recipient_id].sort().join("_");
 				const convRef = db.collection("instagram_conversations").doc(convoKey);
@@ -225,13 +305,18 @@ router.post("/webhook", async (req, res) => {
 						});
 				}
 
-				// add message (fire-and-forget, no await)
+				// Add message (fire-and-forget, no await)
 				convRef.collection("messages").add({
 					sender_id,
 					recipient_id,
 					text: msgText,
 					timestamp: msgTime,
 				});
+
+				// **NEW: Schedule or reschedule the webhook**
+				if (business_account_id !== sender_id) {
+					scheduleConversationWebhook(convoKey, business_account_id, sender_id);
+				}
 			}
 		}
 
@@ -240,6 +325,12 @@ router.post("/webhook", async (req, res) => {
 		console.error("Webhook failed:", err);
 		res.status(500).json({ error: "Webhook failed" });
 	}
+});
+
+// Optional: Clean up old timers on server restart
+process.on("SIGTERM", () => {
+	conversationTimers.forEach((timer) => clearTimeout(timer));
+	conversationTimers.clear();
 });
 
 // depricated

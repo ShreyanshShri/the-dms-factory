@@ -5,10 +5,10 @@ import IndexPage from "./components/Index/Index";
 import Login from "./components/Auth/Login";
 import Register from "./components/Auth/Register";
 import Dashboard from "./components/Dashboard/Dashboard";
-import CreateCampaign from "./components/Campaign/CreateCampaign";
-import CampaignInfo from "./components/Campaign/CampaignInfo";
-import CampaignEdit from "./components/Campaign/CampaignEdit";
-import ManageAccounts from "./components/Dashboard/ManageAccounts";
+// import CreateCampaign from "./components/Campaign/CreateCampaign";
+// import CampaignInfo from "./components/Campaign/CampaignInfo";
+// import CampaignEdit from "./components/Campaign/CampaignEdit";
+// import ManageAccounts from "./components/Dashboard/ManageAccounts";
 import AdminDashboard from "./components/Dashboard/AdminDashboard";
 import PaymentPortal from "./components/Payment/PaymentPortal";
 import PaymentProcessing from "./components/Payment/PaymentProcessing";
@@ -37,7 +37,7 @@ function App() {
 								</ProtectedRoute>
 							}
 						/>
-						<Route
+						{/* <Route
 							path="/create-campaign"
 							element={
 								<ProtectedRoute>
@@ -76,7 +76,7 @@ function App() {
 									</Layout>
 								</ProtectedRoute>
 							}
-						/>
+						/> */}
 						<Route
 							path="/inbox"
 							element={

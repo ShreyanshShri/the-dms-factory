@@ -5,7 +5,7 @@ export default function IndexPage() {
 	return (
 		<div className="dmf-landing-page">
 			<header className="dmf-header">
-				<h1 className="dmf-logo">The DM Factory</h1>
+				<h1 className="dmf-logo">BuildFluence</h1>
 				<nav className="dmf-nav">
 					<Link to="/login">Dashboard</Link>
 					<Link to="/docs">Docs</Link>
@@ -14,14 +14,16 @@ export default function IndexPage() {
 
 			<main className="dmf-hero">
 				<div className="container">
-					<h2 className="hero-title">Automate Instagram DMs with Precision</h2>
+					<h2 className="hero-title">
+						Manage Instagram Conversations with Ease
+					</h2>
 					<p className="hero-subtitle">
-						The DM Factory helps you scale engagement through intelligent,
-						account-based direct messaging — without getting banned or blocked.
+						BuildFluence helps you centralize, organize, and respond to messages
+						across multiple accounts — all in one place.
 					</p>
 					<div className="hero-actions">
 						<Link to="/login" className="hero-btn primary">
-							Start Campaign
+							Go to Inbox
 						</Link>
 						<Link to="/docs" className="hero-btn secondary">
 							Explore Features
@@ -32,31 +34,31 @@ export default function IndexPage() {
 
 			<section className="dmf-features container">
 				<div className="feature-card">
-					<h3>Smart Campaign Control</h3>
+					<h3>Unified Inbox</h3>
 					<p>
-						Start, pause, or stop DMs per account or per campaign with real-time
-						status sync.
+						View and reply to all your Instagram conversations in one clean,
+						organized dashboard.
 					</p>
 				</div>
 				<div className="feature-card">
-					<h3>Safe Automation</h3>
+					<h3>Team Collaboration</h3>
 					<p>
-						Throttled message limits and working hours to mimic human behavior
-						and stay undetected.
+						Assign conversations, add notes, and work with your team to manage
+						leads effectively.
 					</p>
 				</div>
 				<div className="feature-card">
 					<h3>Lead Management</h3>
 					<p>
-						Upload lead lists or use tags to segment your messages and reuse
-						them effortlessly.
+						Tag, segment, and track customer interactions so you never lose
+						context in follow-ups.
 					</p>
 				</div>
 				<div className="feature-card">
-					<h3>Multi-Device Extension</h3>
+					<h3>Multi-Account Support</h3>
 					<p>
-						Use multiple browser extensions as “wizards” that work in sync
-						across campaigns.
+						Connect multiple Instagram business accounts and switch between them
+						seamlessly.
 					</p>
 				</div>
 			</section>
@@ -65,24 +67,24 @@ export default function IndexPage() {
 				<h2 className="section-title">How It Works</h2>
 				<div className="how-steps">
 					<div className="how-step">
-						<h4>1. Add Your IG Accounts</h4>
+						<h4>1. Connect Your IG Accounts</h4>
 						<p>
-							Connect multiple Instagram accounts securely through the browser
-							extension.
+							Securely log in with Instagram and bring all your accounts into
+							one workspace.
 						</p>
 					</div>
 					<div className="how-step">
-						<h4>2. Create a DM Campaign</h4>
+						<h4>2. Organize Conversations</h4>
 						<p>
-							Upload or paste your lead list, write variants, and configure
-							schedule limits.
+							Tag chats, assign teammates, and keep track of every interaction
+							in your pipeline.
 						</p>
 					</div>
 					<div className="how-step">
-						<h4>3. Launch & Monitor</h4>
+						<h4>3. Respond & Track</h4>
 						<p>
-							Start the campaign. Real-time updates let you track each message
-							and reply.
+							Reply directly from the dashboard, monitor responses, and keep
+							your team in sync.
 						</p>
 					</div>
 				</div>
@@ -93,22 +95,22 @@ export default function IndexPage() {
 				<div className="testimonial-cards">
 					<div className="testimonial">
 						<p>
-							"We've doubled our outreach while staying compliant with
-							Instagram's limits. This tool is a must-have."
+							"Our team finally has one place to manage all Instagram messages.
+							No more switching accounts."
 						</p>
-						<span>— Raj, Growth Hacker</span>
+						<span>— Raj, Growth Manager</span>
 					</div>
 					<div className="testimonial">
 						<p>
-							"Clean UI, intuitive logic, and real-time control. Honestly,
-							better than most paid SaaS."
+							"The shared inbox is a game changer. Assigning conversations makes
+							client handling so smooth."
 						</p>
-						<span>— Kritika, Freelance Marketer</span>
+						<span>— Kritika, Social Media Manager</span>
 					</div>
 					<div className="testimonial">
 						<p>
-							"The wizard extension model is genius. We run this across 30+
-							accounts without stress."
+							"We scaled to 20+ accounts and BuildFluence keeps everything
+							organized and secure."
 						</p>
 						<span>— Aryan, Agency Owner</span>
 					</div>
@@ -116,21 +118,19 @@ export default function IndexPage() {
 			</section>
 
 			<section className="dmf-final-cta container">
-				<h2>Ready to Scale Your DM Campaigns?</h2>
+				<h2>Ready to Simplify Your Instagram Inbox?</h2>
 				<p>
-					Start for free. Use your own browser and accounts. No API limits, no
-					nonsense.
+					Centralize your messages, manage leads, and collaborate with your team
+					from one dashboard.
 				</p>
 				<Link to="/login" className="hero-btn primary">
-					Launch The DM Factory
+					Get Started
 				</Link>
 			</section>
 
 			<footer className="dmf-footer">
 				<div className="container">
-					<p>
-						© {new Date().getFullYear()} The DM Factory. All rights reserved.
-					</p>
+					<p>© {new Date().getFullYear()} BuildFluence. All rights reserved.</p>
 				</div>
 			</footer>
 		</div>
