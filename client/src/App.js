@@ -16,6 +16,7 @@ import Inbox from "./components/Inbox/Inbox";
 import CRM from "./components/CRM/CRM";
 import ProtectedRoute from "./components/Auth/ProtectedRoute";
 import Layout from "./components/Layout/Layout";
+import PrivacyPolicy from "./components/Privacy/PrivacyPolicy";
 import "./styles/globals.css";
 
 function App() {
@@ -27,6 +28,7 @@ function App() {
 						<Route path="/" element={<IndexPage />} />
 						<Route path="/login" element={<Login />} />
 						<Route path="/register" element={<Register />} />
+						<Route path="/privacy-policy" element={<PrivacyPolicy />} />
 						<Route
 							path="/dashboard"
 							element={

@@ -4,8 +4,10 @@ import axiosInstance from "./axiosInstance";
 axiosInstance.interceptors.response.use(
 	(response) => response.data,
 	(error) => {
-		// Only redirect on 401 for specific cases, not everything
-		const isAuthCheckRoute = !window.location.pathname.startsWith("/login");
+		const publicRoutes = ["/", "/privacy-policy", "/login", "/register"];
+		const isPublicRoute = publicRoutes.includes(window.location.pathname);
+		const isAuthCheckRoute = !isPublicRoute;
+
 		if (
 			isAuthCheckRoute &&
 			error.response?.status === 401 &&
