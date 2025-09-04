@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import Footer from "../utils/Footer";
 import "../../styles/index.css";
 
 export default function IndexPage() {
@@ -127,12 +128,7 @@ export default function IndexPage() {
 					Get Started
 				</Link>
 			</section>
-
-			<footer className="dmf-footer">
-				<div className="container">
-					<p>© {new Date().getFullYear()} BuildFluence. All rights reserved.</p>
-				</div>
-			</footer>
+			<Footer />
 		</div>
 	);
 }

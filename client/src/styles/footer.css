@@ -1,0 +1,42 @@
+/* Updated Footer with Privacy Policy Link */
+.dmf-footer {
+	border-top: 1px solid var(--border-color);
+	padding: 24px 0;
+	text-align: center;
+	font-size: 14px;
+	color: var(--text-muted);
+	margin-top: 60px;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: 20px;
+	flex-wrap: wrap;
+}
+
+.dmf-footer a {
+	color: var(--text-muted);
+	text-decoration: none;
+	font-weight: 500;
+	transition: color 0.2s ease;
+}
+
+.dmf-footer a:hover {
+	color: var(--accent-primary);
+	text-decoration: underline;
+}
+
+.footer-separator {
+	color: var(--border-color);
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+	.dmf-footer {
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.footer-separator {
+		display: none;
+	}
+}
