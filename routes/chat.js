@@ -239,7 +239,8 @@ router.post("/webhook", async (req, res) => {
 					let client_account_username = "";
 					const client_id =
 						sender_id == business_account_id ? recipient_id : sender_id;
-
+					console.log(business_account_id);
+					console.log(entry);
 					db.collection("instagram_accounts")
 						.doc(String(business_account_id))
 						.get()
