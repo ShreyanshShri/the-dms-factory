@@ -244,7 +244,9 @@ router.post("/webhook", async (req, res) => {
 						.doc(String(business_account_id))
 						.get()
 						.then(async (accountSnap) => {
-							const token = accountSnap.data().access_token;
+							const data = await accountSnap.data();
+							console.log("accountSnap", data);
+							const token = data.access_token;
 
 							try {
 								const [business_account_data, client_account_data] =
