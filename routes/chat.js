@@ -480,7 +480,7 @@ router.get("/messages", authenticateToken, async (req, res) => {
 // send message
 router.post("/send", async (req, res) => {
 	const { sender_id, recipient_id, message } = req.body;
-
+	console.log("Sending message", sender_id, recipient_id, message);
 	if (!sender_id || !recipient_id || !message)
 		return res.status(400).json({ error: "Bad payload" });
 
