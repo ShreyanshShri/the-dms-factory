@@ -200,7 +200,7 @@ function scheduleConversationWebhook(convoKey, business_account_id, sender_id) {
 	// Set new 5-minute timer
 	const timer = setTimeout(() => {
 		sendConversationWebhook(convoKey, business_account_id);
-	}, 5 * 60 * 1000); // 5 minutes in milliseconds
+	}, 60 * 1000); // 1 minute in milliseconds
 
 	conversationTimers.set(convoKey, timer);
 	console.log("Scheduled webhook for conversation:", convoKey);
