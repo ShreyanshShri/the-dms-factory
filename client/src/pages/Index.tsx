@@ -27,14 +27,17 @@ const Index = () => {
 			<section className="hero">
 				<div className="hero-content">
 					<div className="hero-badge">
-						<span>Send 50 DMs/Day For Free</span>
+						{/* <span>Send 50 DMs/Day For Free</span> */}
 					</div>
 					<h1 className="hero-title">
-						Turn Cold Outreach Into Clients on Autopilot
+						{/* Turn Cold Outreach Into Clients on Autopilot */}
+						Manage Instagram Conversations with Ease
 					</h1>
 					<p className="hero-description">
-						Scale your pipeline with AI-powered Cold DMs that find, qualify, and
-						convert leads—so you focus on closing deals, not chasing them
+						{/* Scale your pipeline with AI-powered Cold DMs that find, qualify, and
+						convert leads—so you focus on closing deals, not chasing them */}
+						Streamline your Costumer Relationship management with our
+						easy-to-use platform.
 					</p>
 					<Link to="/login" className="hero-button">
 						Start Free Trial
@@ -116,9 +119,10 @@ const Index = () => {
 							</div>
 							<h4>Fill your calendar with qualified calls</h4>
 							<p>
-								Let AI handle the outreach and follow-ups while you focus on
-								closing deals. Buildfluence keeps your pipeline full with real
-								prospects who actually want to talk.
+								{/* Let AI handle the outreach and follow-ups while you focus on */}
+								Let AI handle the follow-ups while you focus on closing deals.
+								Buildfluence keeps your pipeline full with real prospects who
+								actually want to talk.
 							</p>
 						</div>
 						<div className="about-card">
@@ -130,8 +134,11 @@ const Index = () => {
 							</div>
 							<h4>Target the right audience instantly</h4>
 							<p>
-								No more guesswork. Use Buildfluence's smart filters and
+								{/* No more guesswork. Use Buildfluence's smart filters and
 								lead-sourcing tools to connect with your{" "}
+								<strong>ideal clients</strong> in seconds. */}
+								No more juggling between the inbox and your calendar. Use
+								Buildfluence's smart filters and tools to connect with your{" "}
 								<strong>ideal clients</strong> in seconds.
 							</p>
 						</div>
@@ -144,6 +151,7 @@ const Index = () => {
 					<div className="section-header">
 						<h2>Get Connected Faster</h2>
 						<p>
+							{/* Our AI outreach engine helps you cut through the noise, land in */}
 							Our AI outreach engine helps you cut through the noise, land in
 							the right inboxes, and spark real conversations.
 						</p>
@@ -160,7 +168,7 @@ const Index = () => {
 								<div className="feature-stat-text">Faster Integration</div>
 							</div>
 						</div>
-						<div className="feature-card">
+						{/* <div className="feature-card">
 							<h3>Your AI-Powered DM Setter</h3>
 							<p>
 								From getting leads to sending follow-ups, our integrated AI
@@ -174,7 +182,7 @@ const Index = () => {
 									Happy customers worldwide
 								</div>
 							</div>
-						</div>
+						</div> */}
 					</div>
 				</div>
 			</section>
@@ -210,7 +218,7 @@ const Index = () => {
 								</Link>
 							</div>
 						</div>
-						<div className="core-feature">
+						{/* <div className="core-feature">
 							<div className="core-feature-image">
 								<img
 									src="https://framerusercontent.com/images/T2XWd3JDcA0zUzD6bi7g9DNo7g.svg"
@@ -228,8 +236,8 @@ const Index = () => {
 									Try Today
 								</Link>
 							</div>
-						</div>
-						<div className="core-feature">
+						</div> */}
+						{/* <div className="core-feature">
 							<div className="core-feature-image">
 								<img
 									src="https://framerusercontent.com/images/zLXAoOtJ383xmTfVCM7atAwY5VA.svg"
@@ -250,7 +258,7 @@ const Index = () => {
 									Start Sending
 								</Link>
 							</div>
-						</div>
+						</div> */}
 					</div>
 				</div>
 			</section>
@@ -278,9 +286,9 @@ const Index = () => {
 								per person, per month For Both Instagram and X
 							</p>
 							<ul className="pricing-features">
-								<li>Unlimited Accounts</li>
-								<li>Unlimited Campaigns</li>
-								<li>Send 10,000 DMs/Day</li>
+								{/* <li>Unlimited Accounts</li> */}
+								{/* <li>Unlimited Campaigns</li> */}
+								{/* <li>Send 10,000 DMs/Day</li> */}
 								<li>Comprehensive Dashboard</li>
 								<li>Dedicated Support</li>
 								<li>Elite Community</li>
@@ -294,9 +302,9 @@ const Index = () => {
 							<h3>Premium</h3>
 							<p className="subtitle">Best For Starting</p>
 							<div className="price">$97</div>
-							<p className="price-subtitle">
+							{/* <p className="price-subtitle">
 								per person, per month For Both Instagram and X
-							</p>
+							</p> */}
 							<ul className="pricing-features">
 								<li>Everything In Basic plan</li>
 								<li>Unified Inbox to handle multiple Accounts</li>
@@ -312,9 +320,9 @@ const Index = () => {
 							<h3>Standard</h3>
 							<p className="subtitle">For Maximum Results</p>
 							<div className="price">$149</div>
-							<p className="price-subtitle">
+							{/* <p className="price-subtitle">
 								per person, per month For Both Instagram and X
-							</p>
+							</p> */}
 							<ul className="pricing-features">
 								<li>Everything in Premium Plan</li>
 								<li>Dedicated AI DM Setter</li>
@@ -338,7 +346,7 @@ const Index = () => {
 							Buildfluence's Powerful AI SAAS Solutions
 						</p>
 					</div>
-					<div className="testimonials-grid">
+					{/* <div className="testimonials-grid">
 						<div className="testimonial-card">
 							<p className="testimonial-text">
 								"I used to hate cold outreach 'cause it felt spammy. With
@@ -453,7 +461,7 @@ const Index = () => {
 								</div>
 							</div>
 						</div>
-					</div>
+					</div> */}
 				</div>
 			</section>
 
@@ -477,8 +485,12 @@ const Index = () => {
 							</button>
 							<div className="faq-answer">
 								<p>
-									Buildfluence is an AI-powered outreach platform that automates
+									{/* Buildfluence is an AI-powered outreach platform that automates
 									Instagram & Twitter/X DMs. It works like a virtual DM
+									setter—finding leads, sending personalized messages, following
+									up, and tracking results in one dashboard. */}
+									Buildfluence is an AI-powered platform that automates Costumer
+									Relationship Management (CRM). It works like a virtual DM
 									setter—finding leads, sending personalized messages, following
 									up, and tracking results in one dashboard.
 								</p>

@@ -625,7 +625,10 @@ const ManageAccounts = () => {
 									Clear Selection ({selectedAccounts.size})
 								</button>
 							)}
-							<Link to="/campaigns/create" className="header-action-btn">
+							<Link
+								to="/dashboard/create-campaign"
+								className="header-action-btn"
+							>
 								+ New Campaign
 							</Link>
 							<button onClick={fetchData} className="header-action-btn">

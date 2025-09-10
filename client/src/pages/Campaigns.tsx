@@ -315,7 +315,7 @@ const Campaigns: React.FC = () => {
 						Create and manage your Buildfluence outreach campaigns
 					</p>
 				</div>
-				<Link to="/campaigns/create-campaign">
+				<Link to="/dashboard/create-campaign">
 					<button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
 						<Plus className="w-4 h-4 mr-2" />
 						New Campaign
@@ -407,7 +407,7 @@ const Campaigns: React.FC = () => {
 						<p className="text-gray-500 dark:text-gray-400 mb-4">
 							Get started by creating your first outreach campaign
 						</p>
-						<Link to="/campaigns/create-campaign">
+						<Link to="/dashboard/create-campaign">
 							<button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
 								Create Campaign
 							</button>
