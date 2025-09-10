@@ -19,6 +19,7 @@ import CampaignInfo from "./pages/CampaignInfo";
 import CampaignEdit from "./pages/CampaignEdit";
 import Inbox from "./pages/Inbox";
 import Layout from "./components/Layout";
+import PaymentPlans from "./pages/PaymentOptions";
 import { AuthProvider } from "./contexts/AuthContext";
 import { AdminProvider } from "./contexts/AdminContext";
 import PaymentPortal from "./pages/PaymentPortal";
@@ -40,6 +41,7 @@ function App() {
 							<Route path="crm" element={<CRM />} />
 							<Route path="extension" element={<ExtensionDownload />} />
 							<Route path="create-campaign" element={<CreateCampaign />} />
+							<Route path="payment-plans" element={<PaymentPlans />} />
 							<Route
 								path="campaign-info/:campaignId"
 								element={<CampaignInfo />}

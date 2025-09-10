@@ -33,23 +33,41 @@ router.get("/callback", async (req, res) => {
 	const meta = JSON.parse(decodeURIComponent(state));
 
 	try {
-		/* 1️⃣ short-lived token */
+		/* 1️⃣ Short-lived token */
 		const tokenRes = await axios.post(
 			"https://api.instagram.com/oauth/access_token",
 			new URLSearchParams({
 				client_id: IG_APP_ID,
 				client_secret: IG_APP_SECRET,
 				grant_type: "authorization_code",
-				redirect_uri: IG_LOGIN_REDIRECT_URI, // must equal the one used in /login
+				redirect_uri: IG_LOGIN_REDIRECT_URI,
 				code,
 			})
 		);
 
 		const { access_token: shortTok, user_id } = tokenRes.data;
+		console.log("✅ Short token obtained for user:", user_id);
 
-		/* 2️⃣ exchange for 60-day token */
+		/* 1.5️⃣ Verify account type */
+		const accountInfo = await axios.get(`https://graph.instagram.com/me`, {
+			params: {
+				fields: "id,username,account_type,user_id",
+				access_token: shortTok,
+			},
+		});
+
+		console.log("📋 Account details:", accountInfo.data);
+
+		if (accountInfo.data.account_type !== "BUSINESS") {
+			throw new Error(
+				`Account must be Business type, got: ${accountInfo.data.account_type}`
+			);
+		}
+
+		/* 2️⃣ Exchange for long-lived token */
+		console.log("🔄 Attempting token exchange...");
 		const longTokRes = await axios.get(
-			"https://graph.instagram.com/v23.0/access_token",
+			"https://graph.instagram.com/access_token",
 			{
 				params: {
 					grant_type: "ig_exchange_token",
@@ -60,29 +78,43 @@ router.get("/callback", async (req, res) => {
 		);
 
 		const longTok = longTokRes.data.access_token;
+		console.log(
+			"✅ Long token obtained, expires in:",
+			longTokRes.data.expires_in
+		);
 
+		/* 3️⃣ Test token with basic call */
+		const finalCheck = await axios.get(`https://graph.instagram.com/me`, {
+			params: {
+				fields: "id,username,account_type",
+				access_token: longTok,
+			},
+		});
+		console.log(
+			"✅ Long token verification successful:",
+			finalCheck.data.username
+		);
+
+		/* 4️⃣ Subscribe to webhooks */
 		await axios.post(
 			`https://graph.instagram.com/v23.0/me/subscribed_apps?subscribed_fields=messages&access_token=${longTok}`
 		);
 
-		const { data } = await axios.get(`https://graph.instagram.com/me`, {
-			params: {
-				fields: "id,username,account_type,user_id",
-				access_token: longTok,
-			},
-		});
-
-		/* 4️⃣ store everything you need */
-		await db.collection("instagram_accounts").doc(String(data.user_id)).set(
-			{
-				user: meta.uid,
-				user_id: data.user_id,
-				username: data.username,
-				access_token: longTok,
-				token_created: new Date(),
-			},
-			{ merge: true }
-		);
+		/* 5️⃣ Store in database */
+		await db
+			.collection("instagram_accounts")
+			.doc(String(accountInfo.data.user_id))
+			.set(
+				{
+					user: meta.uid,
+					user_id: accountInfo.data.user_id,
+					username: accountInfo.data.username,
+					access_token: longTok,
+					token_created: new Date(),
+					account_type: accountInfo.data.account_type,
+				},
+				{ merge: true }
+			);
 
 		const URL =
 			process.env.NODE_ENV === "production"
@@ -90,8 +122,15 @@ router.get("/callback", async (req, res) => {
 				: "http://localhost:3000/dashboard/inbox";
 		res.redirect(URL);
 	} catch (err) {
-		console.error("OAuth flow failed:", err.response?.data || err.message);
-		res.status(500).json({ error: "Instagram login failed", err });
+		console.error("❌ OAuth flow failed:", {
+			message: err.message,
+			response: err.response?.data,
+			status: err.response?.status,
+		});
+		res.status(500).json({
+			error: "Instagram login failed",
+			details: err.response?.data || err.message,
+		});
 	}
 });
 
