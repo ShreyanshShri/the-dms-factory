@@ -86,7 +86,7 @@ const PerformanceChart: React.FC<PerformanceChartProps> = ({ data, title }) => {
 					color: "#9CA3AF",
 					font: {
 						size: 8,
-						weight: "500",
+						weight: "500" as any,
 					},
 					maxRotation: 45,
 					minRotation: 0,
