@@ -80,6 +80,8 @@ router.post("/register", async (req, res) => {
 		const userRef = db.collection("users").doc();
 		const uid = userRef.id;
 
+		// In auth.js, update the userData object in the register route:
+
 		const userData = {
 			name: name.trim(),
 			email: email.toLowerCase().trim(),
@@ -87,6 +89,19 @@ router.post("/register", async (req, res) => {
 			role: "user",
 			isSubscribed: false,
 			subscriptionStatus: "pending",
+			notifications: {
+				email: true,
+				push: true,
+				sms: false,
+				errors: true,
+				limits: true,
+				completion: true,
+			},
+			privacy: {
+				dataSharing: false,
+				analytics: true,
+				marketing: false,
+			},
 			createdAt: Date.now(),
 			updatedAt: Date.now(),
 		};

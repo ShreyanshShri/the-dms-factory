@@ -14,6 +14,8 @@ const webhookRoutes = require("./routes/webhook");
 const chatRoutes = require("./routes/chat");
 const userRoutes = require("./routes/user");
 const crmRoutes = require("./routes/crm");
+const dashboardRoutes = require("./routes/dashboard");
+const billingRoutes = require("./routes/billing");
 const { authenticateToken } = require("./middleware/auth");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 
@@ -60,6 +62,8 @@ app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/chats", chatRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/crm", crmRoutes);
+app.use("/api/v1/dashboard", dashboardRoutes);
+app.use("/api/v1/billing", billingRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
@@ -125,11 +129,11 @@ app.use((err, req, res, next) => {
 	});
 });
 
-// Serve frontend (for testing)
-app.use(express.static(path.join(__dirname, "./client/build")));
+// Serve frontend
+app.use(express.static(path.join(__dirname, "./client/dist")));
 
 app.get("*", (req, res) => {
-	res.sendFile(path.join(__dirname, "./client/build/index.html"));
+	res.sendFile(path.join(__dirname, "./client/dist/index.html"));
 });
 
 // Only start server if not in test environment

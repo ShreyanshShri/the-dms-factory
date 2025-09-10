@@ -12,6 +12,7 @@ import {
 	Tooltip,
 	Legend,
 } from "chart.js";
+// @ts-ignore
 import { Line } from "react-chartjs-2";
 
 ChartJS.register(

@@ -12,6 +12,7 @@ const setupCors = (app) => {
 					"https://running.colddmspro.com",
 					"https://the-dms-factory.onrender.com",
 					"https://thebuildfluence.com",
+					"http://localhost:5000", // for testing
 			  ]
 			: [
 					process.env.EXTENSION_URL ||

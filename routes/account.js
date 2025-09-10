@@ -25,8 +25,6 @@ router.get("/overview", async (req, res) => {
 			.collection("accounts")
 			.where("userId", "==", req.user.uid)
 			.get({ source: "server" });
-		console.log("userId", req.user.uid);
-		console.log("accSnap", accSnap.size);
 
 		// group accounts by their currentCampaignId
 		const accByCampaign = {};

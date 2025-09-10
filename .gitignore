@@ -10,6 +10,7 @@ log.txt
 # Frontend
 client/node_modules/
 client/build/
+client/dist/
 config/firebase-service-account.json
 
 # testing

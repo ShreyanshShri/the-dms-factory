@@ -8,7 +8,6 @@ const authenticateToken = async (req, res, next) => {
 		const token = req.cookies.jwt_token;
 
 		if (!token) {
-			console.log("No token provided: ", req.cookies);
 			return res
 				.status(401)
 				.json({ success: false, message: "No token provided" });

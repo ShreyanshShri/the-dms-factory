@@ -86,8 +86,8 @@ router.get("/callback", async (req, res) => {
 
 		const URL =
 			process.env.NODE_ENV === "production"
-				? "/inbox"
-				: "http://localhost:3000/inbox";
+				? "/dashboard/inbox"
+				: "http://localhost:3000/dashboard/inbox";
 		res.redirect(URL);
 	} catch (err) {
 		console.error("OAuth flow failed:", err.response?.data || err.message);

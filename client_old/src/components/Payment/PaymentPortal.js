@@ -6,6 +6,8 @@ import "../../styles/payment.css";
 export default function PaymentPortal() {
 	const { user } = useAuth();
 	const navigate = useNavigate();
+	const params = new URLSearchParams(window.location.search);
+	const planId = params.get("planId") || "plan_KUuUHqMFyFG1U";
 	if (
 		user === null ||
 		user === undefined ||
@@ -26,7 +28,9 @@ export default function PaymentPortal() {
 		);
 	}
 
-	if (user.isSubscribed) {
+	const notExpired =
+		!subscription.expiresAt || new Date(subscription.expiresAt) > new Date();
+	if (user.subscription.status === "active" && notExpired) {
 		return (
 			<div className="admin-dashboard">
 				<div className="access-denied">
@@ -41,7 +45,7 @@ export default function PaymentPortal() {
 
 	return (
 		<WhopCheckoutEmbed
-			planId="plan_2ItO4NQcNGMmE"
+			planId={planId}
 			prefill={{ email: user.email }}
 			disableEmail
 			theme="dark"
