@@ -5,12 +5,12 @@ const { subscribed } = require("../middleware/subscribed");
 const { createResponse } = require("../utils/helpers");
 const { HTTP_STATUS } = require("../utils/my_constants");
 
-const Campaign = require("../models/campaign");
+const Campaign = require("../models/Campaign");
 const {
 	InstagramAccount,
 	InstagramConversation,
 } = require("../models/Instagram");
-const Analytics = require("../models/analytics");
+const Analytics = require("../models/Analytics");
 
 router.use(authenticateToken);
 router.use(subscribed);
