@@ -1,15 +1,20 @@
-// routes/chat.js
 const express = require("express");
 const axios = require("axios");
-const { db, admin } = require("../config/firebase");
 const router = express.Router();
-const { authenticateToken } = require("../middleware/auth");
 
 const IG_APP_ID = process.env.IG_APP_ID;
 const IG_APP_SECRET = process.env.IG_APP_SECRET;
 const IG_LOGIN_REDIRECT_URI = process.env.IG_LOGIN_REDIRECT_URI;
 
-// login logic
+const { authenticateToken } = require("../middleware/auth");
+const {
+	InstagramAccount,
+	InstagramConversation,
+} = require("../models/Instagram");
+const Lead = require("../models/Lead");
+const Campaign = require("../models/Campaign");
+
+// Login route
 router.get("/login", authenticateToken, (req, res) => {
 	const scopes = "instagram_business_basic,instagram_business_manage_messages";
 	const meta = JSON.stringify({ uid: req.user.uid });
@@ -21,19 +26,19 @@ router.get("/login", authenticateToken, (req, res) => {
 		`&scope=${scopes}` +
 		`&response_type=code` +
 		`&state=${encodeURIComponent(meta)}`;
-	// "https://www.instagram.com/oauth/authorize?force_reauth=true&client_id=1654432455251534&redirect_uri=https://4995d4e5a11d.ngrok-free.app/api/v1/chats/callback&response_type=code&scope=instagram_business_basic%2Cinstagram_business_manage_messages%2Cinstagram_business_manage_comments%2Cinstagram_business_content_publish%2Cinstagram_business_manage_insights";
 
 	res.json({ authURL });
 });
 
-// login logic
+// OAuth callback route
 router.get("/callback", async (req, res) => {
 	const { code, state } = req.query;
 	if (!code) return res.status(400).json({ error: "Missing code" });
+
 	const meta = JSON.parse(decodeURIComponent(state));
 
 	try {
-		/* 1️⃣ Short-lived token */
+		// Get short-lived token
 		const tokenRes = await axios.post(
 			"https://api.instagram.com/oauth/access_token",
 			new URLSearchParams({
@@ -44,28 +49,26 @@ router.get("/callback", async (req, res) => {
 				code,
 			})
 		);
-
 		const { access_token: shortTok, user_id } = tokenRes.data;
 		console.log("✅ Short token obtained for user:", user_id);
 
-		/* 1.5️⃣ Verify account type */
-		const accountInfo = await axios.get(`https://graph.instagram.com/me`, {
+		// Verify account type
+		const accountInfoRes = await axios.get("https://graph.instagram.com/me", {
 			params: {
 				fields: "id,username,account_type,user_id",
 				access_token: shortTok,
 			},
 		});
+		const accountInfo = accountInfoRes.data;
+		console.log("📋 Account details:", accountInfo);
 
-		console.log("📋 Account details:", accountInfo.data);
-
-		if (accountInfo.data.account_type !== "BUSINESS") {
+		if (accountInfo.account_type !== "BUSINESS") {
 			throw new Error(
-				`Account must be Business type, got: ${accountInfo.data.account_type}`
+				`Account must be Business type, got: ${accountInfo.account_type}`
 			);
 		}
 
-		/* 2️⃣ Exchange for long-lived token */
-		console.log("🔄 Attempting token exchange...");
+		// Exchange for long-lived token
 		const longTokRes = await axios.get(
 			"https://graph.instagram.com/access_token",
 			{
@@ -76,58 +79,51 @@ router.get("/callback", async (req, res) => {
 				},
 			}
 		);
-
 		const longTok = longTokRes.data.access_token;
 		console.log(
 			"✅ Long token obtained, expires in:",
 			longTokRes.data.expires_in
 		);
 
-		/* 3️⃣ Test token with basic call */
-		const finalCheck = await axios.get(`https://graph.instagram.com/me`, {
-			params: {
-				fields: "id,username,account_type",
-				access_token: longTok,
-			},
+		// Verify long-lived token
+		const finalCheck = await axios.get("https://graph.instagram.com/me", {
+			params: { fields: "id,username,account_type", access_token: longTok },
 		});
-		console.log(
-			"✅ Long token verification successful:",
-			finalCheck.data.username
-		);
+		console.log("✅ Long-lived token verified:", finalCheck.data.username);
 
-		/* 4️⃣ Subscribe to webhooks */
+		// Subscribe to webhook events
 		await axios.post(
 			`https://graph.instagram.com/v23.0/me/subscribed_apps?subscribed_fields=messages&access_token=${longTok}`
 		);
 
-		/* 5️⃣ Store in database */
-		await db
-			.collection("instagram_accounts")
-			.doc(String(accountInfo.data.user_id))
-			.set(
-				{
-					user: meta.uid,
-					user_id: accountInfo.data.user_id,
-					username: accountInfo.data.username,
-					access_token: longTok,
-					token_created: new Date(),
-					account_type: accountInfo.data.account_type,
-				},
-				{ merge: true }
-			);
+		// Save or update Instagram account in MongoDB
+		console.log("Account Info", accountInfo);
+		await InstagramAccount.findOneAndUpdate(
+			{ _id: String(accountInfo.user_id) }, // Using IG ID as _id
+			{
+				user: meta.uid,
+				user_id: accountInfo.user_id, // meta userID
+				username: accountInfo.username,
+				access_token: longTok,
+				token_created: new Date(),
+				account_type: accountInfo.account_type,
+			},
+			{ upsert: true, new: true }
+		);
 
-		const URL =
+		const redirectURL =
 			process.env.NODE_ENV === "production"
 				? "/dashboard/inbox"
 				: "http://localhost:3000/dashboard/inbox";
-		res.redirect(URL);
+
+		return res.redirect(redirectURL);
 	} catch (err) {
 		console.error("❌ OAuth flow failed:", {
 			message: err.message,
 			response: err.response?.data,
 			status: err.response?.status,
 		});
-		res.status(500).json({
+		return res.status(500).json({
 			error: "Instagram login failed",
 			details: err.response?.data || err.message,
 		});
@@ -156,102 +152,73 @@ router.get("/webhook", (req, res) => {
 	}
 });
 
-// Store active timers for each conversation
 const conversationTimers = new Map();
 
-// Function to send webhook after delay
 async function sendConversationWebhook(convoKey, business_account_id) {
 	try {
-		// Query messages from Firestore
-		const convRef = db.collection("instagram_conversations").doc(convoKey);
-		const messagesSnapshot = await convRef
-			.collection("messages")
-			.orderBy("timestamp", "asc")
-			.get();
-
-		if (messagesSnapshot.empty) {
-			console.log("No messages found for conversation:", convoKey);
-			return;
-		}
-
-		// Get conversation details
-		const convSnap = await convRef.get();
-		if (!convSnap.exists) {
+		const conv = await InstagramConversation.findById(convoKey).exec();
+		if (!conv) {
 			console.log("Conversation document not found:", convoKey);
 			return;
 		}
 
-		const convData = convSnap.data();
-		const businessAccountId = convData.businessAccount.id;
-		const clientAccountId = convData.clientAccount.id;
+		if (!conv.messages || conv.messages.length === 0) {
+			console.log("No messages found for conversation:", convoKey);
+			return;
+		}
 
-		// Format messages as "My msg: ... Prospect: ..." format
 		let formattedConversation = "";
+		conv.messages
+			.sort((a, b) => a.timestamp - b.timestamp)
+			.forEach((msg) => {
+				const isBusiness = msg.sender_id === conv.businessAccount.id;
+				const label = isBusiness ? "My msg" : "Prospect";
+				formattedConversation += `${label}: ${msg.text}\n`;
+			});
 
-		messagesSnapshot.docs.forEach((doc) => {
-			const messageData = doc.data();
-			const isBusinessMessage = messageData.sender_id === businessAccountId;
-
-			const label = isBusinessMessage ? "My msg" : "Prospect";
-			formattedConversation += `${label}: ${messageData.text}\n`;
-		});
-
-		// Send to n8n webhook
 		await axios.post(
-			"https://n8n.aigrowtech.ru/webhook/6baef27b-40e8-4ad9-b22a-10b41a1fff77",
+			"https://n8n.aigrowtech.ru/webhook/6baef27-40e8-4f77-9b77-26039c0a8d68",
 			{
 				conversation_key: convoKey,
-				business_account_id: businessAccountId,
-				client_account_id: clientAccountId,
+				business_account_id: conv.businessAccount.id,
+				client_account_id: conv.clientAccount.id,
 				formatted_conversation: formattedConversation.trim(),
 				timestamp: new Date().toISOString(),
 			}
 		);
 
-		console.log("Conversation sent to n8n webhook:", {
-			conversation_key: convoKey,
-			business_account_id: businessAccountId,
-			client_account_id: clientAccountId,
-			formatted_conversation: formattedConversation.trim(),
-			timestamp: new Date().toISOString(),
-		});
+		console.log("Conversation sent to webhook", { convoKey });
 	} catch (error) {
-		console.error("Failed to send conversation webhook:", error.message);
+		console.error("Failed to send webhook:", error.message);
 	} finally {
-		// Clean up the timer reference
 		conversationTimers.delete(convoKey);
 	}
 }
 
-// Function to schedule or reschedule webhook
 function scheduleConversationWebhook(convoKey, business_account_id, sender_id) {
-	// Only schedule for messages FROM prospects (not business account)
 	if (sender_id === business_account_id) {
-		return; // Don't schedule webhook for business account messages
+		return; // don't schedule for business messages
 	}
-
-	// Clear existing timer if it exists
 	if (conversationTimers.has(convoKey)) {
 		clearTimeout(conversationTimers.get(convoKey));
 		console.log("Cleared existing timer for:", convoKey);
 	}
-
-	// Set new 5-minute timer
 	const timer = setTimeout(() => {
 		sendConversationWebhook(convoKey, business_account_id);
-	}, 60 * 1000); // 1 minute in milliseconds
-
+	}, 60 * 1000); // 1 minute delay for demo (adjust as needed)
 	conversationTimers.set(convoKey, timer);
 	console.log("Scheduled webhook for conversation:", convoKey);
 }
 
-// Updated webhook handler
 router.post("/webhook", async (req, res) => {
-	if (req.body.object !== "instagram") return res.sendStatus(404);
+	if (req.body.object !== "instagram") {
+		return res.sendStatus(404);
+	}
 
 	try {
 		for (const entry of req.body.entry) {
 			if (!entry.messaging) continue;
+
 			const business_account_id = entry.id;
 
 			for (const event of entry.messaging) {
@@ -263,99 +230,104 @@ router.post("/webhook", async (req, res) => {
 				const msgTime = new Date(Number(event.timestamp));
 
 				const convoKey = [sender_id, recipient_id].sort().join("_");
-				const convRef = db.collection("instagram_conversations").doc(convoKey);
-				const convSnap = await convRef.get();
 
-				if (convSnap.exists) {
-					convRef.update({
+				let conv = await InstagramConversation.findById(convoKey).exec();
+
+				if (conv) {
+					await InstagramConversation.findByIdAndUpdate(convoKey, {
 						last_message: msgText,
 						last_time: msgTime,
-						unread_count: admin.firestore.FieldValue.increment(1),
-						responded: business_account_id == sender_id,
-					});
+						$inc: { unread_count: business_account_id === sender_id ? 0 : 1 },
+						responded: business_account_id === sender_id,
+					}).exec();
 				} else {
-					let business_account_username = "";
-					let client_account_username = "";
-					const client_id =
-						sender_id == business_account_id ? recipient_id : sender_id;
-					console.log(business_account_id);
-					console.log(entry);
-					db.collection("instagram_accounts")
-						.doc(String(business_account_id))
-						.get()
-						.then(async (accountSnap) => {
-							const data = await accountSnap.data();
-							console.log("accountSnap", data);
-							const token = data.access_token;
+					const accountDoc = await InstagramAccount.findById(
+						business_account_id
+					).exec();
 
-							try {
-								const [business_account_data, client_account_data] =
-									await Promise.all([
-										axios.get(
-											`https://graph.instagram.com/${business_account_id}?fields=username&access_token=${token}`
-										),
-										axios.get(
-											`https://graph.instagram.com/${client_id}?fields=username&access_token=${token}`
-										),
-									]);
+					let business_username = "";
+					let client_username = "";
+					if (accountDoc) {
+						try {
+							const token = accountDoc.access_token;
 
-								business_account_username = business_account_data.data.username;
-								client_account_username = client_account_data.data.username;
-							} catch (err) {
-								console.warn("Failed to fetch IG username:", err.message);
+							const [busRes, cliRes] = await Promise.all([
+								axios.get(
+									`https://graph.instagram.com/${business_account_id}`,
+									{
+										params: { fields: "username", access_token: token },
+									}
+								),
+								axios.get(
+									`https://graph.instagram.com/${
+										recipient_id === business_account_id
+											? sender_id
+											: recipient_id
+									}`,
+									{
+										params: { fields: "username", access_token: token },
+									}
+								),
+							]);
+							business_username = busRes.data.username;
+							client_username = cliRes.data.username;
+						} catch (err) {
+							console.warn("Failed to fetch usernames:", err.message);
+						}
+					}
+
+					let campaignId = null;
+					let context = "";
+					if (client_username) {
+						const lead = await Lead.findOne({
+							username: client_username,
+						}).exec();
+						if (lead) {
+							campaignId = lead.campaignId;
+							if (campaignId) {
+								const campaignDoc = await Campaign.findById(campaignId).exec();
+								context = campaignDoc?.context || "";
 							}
+						}
+					}
 
-							const lead_snap = await db
-								.collection("leads")
-								.where("username", "==", client_account_username)
-								.limit(1)
-								.get();
-
-							let campaignId = null;
-							let context = "";
-							if (lead_snap.docs.length > 0) {
-								campaignId = lead_snap.docs[0].data().campaignId;
-								const campaign_snap = await db
-									.collection("campaigns")
-									.doc(campaignId)
-									.get();
-								if (campaign_snap.exists) {
-									const campaign = campaign_snap.data();
-									context = campaign.context || "";
-								}
-							}
-
-							convRef.set({
-								businessAccount: {
-									id: business_account_id,
-									username: business_account_username,
-								},
-								clientAccount: {
-									id: client_id,
-									username: client_account_username,
-								},
-								webhook_owner_id: business_account_id,
-								last_message: msgText,
-								last_time: msgTime,
-								unread_count: 1,
-								responded: business_account_id == sender_id,
-								interested: false,
-								tags: [],
-								campaignId,
-								context,
-							});
-						});
+					conv = new InstagramConversation({
+						_id: convoKey,
+						businessAccount: {
+							id: business_account_id,
+							username: business_username,
+						},
+						clientAccount: {
+							id:
+								recipient_id === business_account_id ? sender_id : recipient_id,
+							username: client_username,
+						},
+						webhook_owner_id: business_account_id,
+						last_message: msgText,
+						last_time: msgTime,
+						unread_count: 1,
+						responded: business_account_id === sender_id,
+						interested: false,
+						tags: [],
+						campaignId,
+						context,
+						createdAt: new Date(),
+						messages: [],
+					});
+					await conv.save();
 				}
+				// Append message
+				await InstagramConversation.findByIdAndUpdate(convoKey, {
+					$push: {
+						messages: {
+							sender_id,
+							recipient_id,
+							text: msgText,
+							timestamp: msgTime,
+						},
+					},
+				}).exec();
 
-				// Add message (fire-and-forget, no await)
-				convRef.collection("messages").add({
-					sender_id,
-					recipient_id,
-					text: msgText,
-					timestamp: msgTime,
-				});
-
-				// **NEW: Schedule or reschedule the webhook**
 				if (business_account_id !== sender_id) {
 					scheduleConversationWebhook(convoKey, business_account_id, sender_id);
 				}
@@ -364,101 +336,53 @@ router.post("/webhook", async (req, res) => {
 
 		res.sendStatus(200);
 	} catch (err) {
-		console.error("Webhook failed:", err);
+		console.error("Webhook error:", err);
 		res.status(500).json({ error: "Webhook failed" });
 	}
 });
 
-// Optional: Clean up old timers on server restart
+// Optional: Clean up old timers on server shutdown
 process.on("SIGTERM", () => {
 	conversationTimers.forEach((timer) => clearTimeout(timer));
 	conversationTimers.clear();
 });
 
-// depricated
+// Deprecated - Get Instagram accounts for authenticated user
 router.get("/accounts", authenticateToken, async (req, res) => {
-	const snap = await db
-		.collection("instagram_accounts")
-		.where("user", "==", req.user.uid)
-		.get();
-	const accounts = [];
-	snap.forEach((doc) =>
-		accounts.push({ ig_account_id: doc.id, ...doc.data() })
-	);
-	res.json({ success: true, accounts });
-});
-
-// depricated
-router.get("/conversations", authenticateToken, async (req, res) => {
-	const { account } = req.query; // IG_USER_ID
-	if (!account) return res.status(400).json({ error: "Missing account param" });
 	try {
-		// const snap = await db
-		// 	.collection("instagram_conversations")
-		// 	.where("recipient_id", "==", String(account))
-		// 	// .orderBy("last_time", "desc")
-		// 	.limit(25)
-		// 	.get();
-
-		// const convos = [];
-		// snap.forEach((d) => convos.push({ thread_id: d.id, ...d.data() }));
-		// // 		GET https://graph.instagram.com/v23.0/{ig_user_id}/conversations
-		// //   ?fields=id,updated_time,
-		// //           participants.limit(2){id,username},
-		// //           messages.limit(1){id,text,from,to,timestamp}
-		// //   &access_token={token}
-		const snapshot = await db
-			.collection("instagram_conversations")
-			.where("recipient_id", "==", account)
-			//   .orderBy("last_time", "desc")
-			.get();
-		const conversations = snapshot.docs.map((doc) => ({
-			id: doc.id,
-			...doc.data(),
-		}));
-		// const accountSnap = await db
-		// 	.collection("instagram_accounts")
-		// 	.doc(String(account))
-		// 	.get();
-		// const access_token = accountSnap.data().access_token;
-		// const { data } = await axios.get(
-		// 	`https://graph.instagram.com/v23.0/me/conversations?fields=id,updated_time,participants.limit(2){id,username},messages.limit(1){id,text,from,to,timestamp}&access_token=${access_token}`
-		// );
-		res.json({ success: true, conversations: conversations });
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ error: err.message });
+		const accounts = await InstagramAccount.find({ user: req.user.uid }).lean();
+		res.json({ success: true, accounts });
+	} catch (error) {
+		res.status(500).json({ success: false, message: error.message });
 	}
 });
 
-// combining /accounts and /conversations
-// Get all conversations for a user (no messages)
+// Deprecated - Get Instagram conversations by recipient ID (IG user ID)
+router.get("/conversations", authenticateToken, async (req, res) => {
+	const { account } = req.query;
+	if (!account) return res.status(400).json({ error: "Missing account param" });
+	try {
+		const conversations = await InstagramConversation.find({
+			"clientAccount.id": account,
+		}).lean(); // Adjust filter if needed
+		res.json({ success: true, conversations });
+	} catch (error) {
+		res.status(500).json({ error: error.message });
+	}
+});
+
+// Get all conversations and accounts for authenticated user (no messages)
 router.get("/all-conversations", authenticateToken, async (req, res) => {
 	try {
-		const snap = await db
-			.collection("instagram_accounts")
-			.where("user", "==", req.user.uid)
-			.get();
-
-		const accounts = snap.docs.map((doc) => ({
-			user_id: doc.data().user_id,
-			username: doc.data().username,
-		}));
+		const accounts = await InstagramAccount.find({ user: req.user.uid }).lean();
+		const accountIds = accounts.map((acc) => acc.user_id);
 
 		let conversations = [];
-
-		for (const account of accounts) {
-			const snapshot = await db
-				.collection("instagram_conversations")
-				.where("webhook_owner_id", "==", String(account.user_id)) // query per account
-				.get();
-
-			snapshot.forEach((doc) => {
-				conversations.push({
-					id: doc.id,
-					...doc.data(),
-				});
-			});
+		for (const accountId of accountIds) {
+			const convs = await InstagramConversation.find({
+				webhook_owner_id: accountId,
+			}).lean();
+			conversations = conversations.concat(convs);
 		}
 
 		res.json({
@@ -466,9 +390,8 @@ router.get("/all-conversations", authenticateToken, async (req, res) => {
 			accounts,
 			conversations,
 		});
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ error: err.message });
+	} catch (error) {
+		res.status(500).json({ error: error.message });
 	}
 });
 
@@ -482,53 +405,48 @@ router.get("/messages", authenticateToken, async (req, res) => {
 
 	try {
 		const convoKey = [sender_id, recipient_id].sort().join("_");
-		const convRef = db.collection("instagram_conversations").doc(convoKey);
-		await convRef.update({ unread_count: 0 });
+		const conversation = await InstagramConversation.findById(convoKey);
 
-		const messagesRef = convRef
-			.collection("messages")
-			.orderBy("timestamp", "desc")
-			.limit(Number(limit));
+		if (!conversation) {
+			return res.status(404).json({ error: "Conversation not found" });
+		}
 
-		const snapshot = await messagesRef.get();
+		// Reset unread count
+		conversation.unread_count = 0;
+		await conversation.save();
 
-		// convert to array and reverse so oldest messages come first
-		const messages = snapshot.docs
-			.map((doc) => ({
-				id: doc.id,
-				...doc.data(),
-			}))
-			.reverse();
+		// Pagination logic
+		const startIndex = (page - 1) * limit;
+		const paginatedMessages = conversation.messages
+			.sort((a, b) => a.timestamp - b.timestamp)
+			.slice(startIndex, startIndex + Number(limit));
 
 		res.json({
 			success: true,
-			messages,
+			messages: paginatedMessages,
 			pagination: {
 				limit: Number(limit),
 				page: Number(page),
-				total: messages.length,
+				total: conversation.messages.length,
 			},
 		});
-	} catch (err) {
-		res
-			.status(500)
-			.json({ error: err.response?.data?.error?.message || err.message });
+	} catch (error) {
+		res.status(500).json({ error: error.message });
 	}
 });
 
-// send message
+// Send a message
 router.post("/send", async (req, res) => {
 	const { sender_id, recipient_id, message } = req.body;
-	console.log("Sending message", sender_id, recipient_id, message);
 	if (!sender_id || !recipient_id || !message)
 		return res.status(400).json({ error: "Bad payload" });
 
 	try {
-		const accountSnap = await db
-			.collection("instagram_accounts")
-			.doc(String(sender_id))
-			.get();
-		const token = accountSnap.data().access_token;
+		const account = await InstagramAccount.findById(sender_id);
+		if (!account)
+			return res.status(400).json({ error: "Sender account not found" });
+
+		const token = account.access_token;
 
 		const resp = await axios.post(
 			"https://graph.instagram.com/v23.0/me/messages",
@@ -538,125 +456,87 @@ router.post("/send", async (req, res) => {
 			},
 			{ params: { access_token: token } }
 		);
-		// const msgTime = Math.floor(Date.now() / 1000);
-		// await db
-		// 	.collection("instagram_conversations")
-		// 	.doc(`${recipient_id}_${sender_id}`)
-		// 	.update({
-		// 		messages: admin.firestore.FieldValue.arrayUnion({
-		// 			sender_id,
-		// 			recipient_id,
-		// 			text: message,
-		// 			timestamp: msgTime,
-		// 		}),
-		// 	});
 
 		res.json({ success: true, message_id: resp.data.message_id });
-	} catch (err) {
+	} catch (error) {
 		res
 			.status(500)
-			.json({ error: err.response?.data?.error?.message || err.message });
+			.json({ error: error.response?.data?.error?.message || error.message });
 	}
 });
 
+// Set interested state on a conversation
 router.post("/set-interested", authenticateToken, async (req, res) => {
 	try {
 		const { sender_id, recipient_id, state } = req.body;
 		const convoKey = [sender_id, recipient_id].sort().join("_");
-		const convRef = db.collection("instagram_conversations").doc(convoKey);
-		await convRef.update({ interested: state });
+		await InstagramConversation.findByIdAndUpdate(convoKey, {
+			interested: state,
+		});
 		res.json({ success: true });
-	} catch (err) {
-		res
-			.status(500)
-			.json({ error: err.response?.data?.error?.message || err.message });
-		console.error(err);
+	} catch (error) {
+		res.status(500).json({ error: error.message });
 	}
 });
 
-// switch campaign
+// Switch campaign on a conversation
 router.post("/switch-campaign", authenticateToken, async (req, res) => {
 	try {
 		const { sender_id, recipient_id, campaign_id } = req.body;
 		const convoKey = [sender_id, recipient_id].sort().join("_");
 
-		const campaign_snap = await db
-			.collection("campaigns")
-			.doc(campaign_id)
-			.get();
-		if (!campaign_snap.exists) {
+		const campaign = await Campaign.findById(campaign_id);
+		if (!campaign) {
 			return res
-				.status(HTTP_STATUS.NOT_FOUND)
-				.json(createResponse(false, null, "Campaign not found"));
+				.status(404)
+				.json({ success: false, message: "Campaign not found" });
 		}
 
-		const convRef = db.collection("instagram_conversations").doc(convoKey);
-		await convRef.update({
-			campaign_id,
-			context: campaign_snap.data().context,
+		await InstagramConversation.findByIdAndUpdate(convoKey, {
+			campaignId: campaign_id,
+			context: campaign.context || "",
 		});
 
 		res.json({ success: true });
-	} catch (err) {
-		res
-			.status(500)
-			.json({ error: err.response?.data?.error?.message || err.message });
-		console.error(err);
+	} catch (error) {
+		res.status(500).json({ error: error.message });
 	}
 });
 
-// Add these routes to your existing chat.js file
-
-// Get all available tags for a user
+// Get all available tags for authenticated user's accounts
 router.get("/tags", authenticateToken, async (req, res) => {
 	try {
-		const snap = await db
-			.collection("instagram_accounts")
-			.where("user", "==", req.user.uid)
-			.get();
+		const accounts = await InstagramAccount.find({ user: req.user.uid }).lean();
+		const accountIds = accounts.map((acc) => acc.user_id);
+		if (accountIds.length === 0) return res.json({ success: true, tags: [] });
 
-		const accountIds = snap.docs.map((doc) => doc.data().user_id);
-
-		if (accountIds.length === 0) {
-			return res.json({ success: true, tags: [] });
-		}
-
-		const conversationsSnap = await db
-			.collection("instagram_conversations")
-			.where("webhook_owner_id", "in", accountIds.map(String))
-			.get();
+		const conversations = await InstagramConversation.find({
+			webhook_owner_id: { $in: accountIds },
+		}).lean();
 
 		const allTags = new Set();
-		conversationsSnap.forEach((doc) => {
-			const tags = doc.data().tags || [];
-			tags.forEach((tag) => allTags.add(tag));
+		conversations.forEach((conv) => {
+			(conv.tags || []).forEach((tag) => allTags.add(tag));
 		});
 
 		res.json({ success: true, tags: Array.from(allTags) });
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ error: err.message });
+	} catch (error) {
+		res.status(500).json({ error: error.message });
 	}
 });
 
-// Add/remove tags to a conversation
+// Add or remove tags on a conversation
 router.post("/tags", authenticateToken, async (req, res) => {
 	try {
 		const { sender_id, recipient_id, tags } = req.body;
-
-		if (!Array.isArray(tags)) {
+		if (!Array.isArray(tags))
 			return res.status(400).json({ error: "Tags must be an array" });
-		}
 
 		const convoKey = [sender_id, recipient_id].sort().join("_");
-		const convRef = db.collection("instagram_conversations").doc(convoKey);
-
-		await convRef.update({ tags });
-
+		await InstagramConversation.findByIdAndUpdate(convoKey, { tags });
 		res.json({ success: true });
-	} catch (err) {
-		console.error(err);
-		res.status(500).json({ error: err.message });
+	} catch (error) {
+		res.status(500).json({ error: error.message });
 	}
 });
 
@@ -664,24 +544,17 @@ router.post("/tags", authenticateToken, async (req, res) => {
 router.get("/recipients/:businessAccountId", async (req, res) => {
 	try {
 		const { businessAccountId } = req.params;
-
-		const usersSnapshot = await db
+		const recipients = await db
 			.collection("instagram_users")
 			.where("business_account_id", "==", businessAccountId)
 			.where("can_receive_messages", "==", true)
-			.get();
-
-		const recipients = [];
-		usersSnapshot.forEach((doc) => {
-			recipients.push({
-				user_id: doc.id,
-				...doc.data(),
-			});
-		});
+			.get()
+			.then((snapshot) =>
+				snapshot.docs.map((doc) => ({ user_id: doc.id, ...doc.data() }))
+			);
 
 		res.json({ success: true, recipients });
 	} catch (error) {
-		console.error("Error fetching recipients:", error);
 		res.status(500).json({ error: "Failed to fetch recipients" });
 	}
 });

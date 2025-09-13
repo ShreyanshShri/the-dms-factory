@@ -29,7 +29,7 @@ const CampaignInfo = () => {
 	const [campaign, setCampaign] = useState<any>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
-	const [dmTrend, setDmTrend] = useState(null);
+	const [_dmTrend, setDmTrend] = useState(null);
 
 	const fetchTrend = async () => {
 		try {
@@ -112,37 +112,37 @@ const CampaignInfo = () => {
 		}
 	};
 
-	const [analyticsData, setAnalyticsData] = useState({
+	const [analyticsData, _setAnalyticsData] = useState({
 		today: null,
 		week: null,
 		month: null,
 	});
-	const [analyticsLoading, setAnalyticsLoading] = useState(false);
+	const [analyticsLoading, _setAnalyticsLoading] = useState(false);
 
-	const fetchAnalytics = async () => {
-		try {
-			setAnalyticsLoading(true);
-			const timeframes = ["today", "week", "month"];
-			const promises = timeframes.map((timeframe) =>
-				campaignAPI.getAnalytics({ campaignID: campaignId || "", timeframe })
-			);
-			const responses = await Promise.all(promises);
-			const analytics = {
-				today: responses[0].success ? responses[0] : null,
-				week: responses[1].success ? responses[1] : null,
-				month: responses[2].success ? responses[2] : null,
-			};
-			setAnalyticsData(analytics);
-		} catch (error) {
-			console.error("Error fetching analytics:", error);
-		} finally {
-			setAnalyticsLoading(false);
-		}
-	};
+	// const fetchAnalytics = async () => {
+	// 	try {
+	// 		setAnalyticsLoading(true);
+	// 		const timeframes = ["today", "week", "month"];
+	// 		const promises = timeframes.map((timeframe) =>
+	// 			campaignAPI.getAnalytics({ campaignID: campaignId || "", timeframe })
+	// 		);
+	// 		const responses = await Promise.all(promises);
+	// 		const analytics = {
+	// 			today: responses[0].success ? responses[0] : null,
+	// 			week: responses[1].success ? responses[1] : null,
+	// 			month: responses[2].success ? responses[2] : null,
+	// 		};
+	// 		setAnalyticsData(analytics);
+	// 	} catch (error) {
+	// 		console.error("Error fetching analytics:", error);
+	// 	} finally {
+	// 		setAnalyticsLoading(false);
+	// 	}
+	// };
 
 	useEffect(() => {
 		if (campaignId && campaign) {
-			fetchAnalytics();
+			// fetchAnalytics();
 		}
 	}, [campaignId, campaign]);
 
@@ -403,13 +403,13 @@ const CampaignInfo = () => {
 						<h2 className="text-xl font-semibold text-white mb-6">
 							📈 DMs Sent (Last 7 Days)
 						</h2>
-						{dmTrend ? (
+						{/* {dmTrend ? (
 							<Line data={dmTrend} />
 						) : (
 							<div className="text-center py-8 text-gray-400">
 								Loading chart…
 							</div>
-						)}
+						)} */}
 					</div>
 				</div>
 

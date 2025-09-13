@@ -1,25 +1,24 @@
 const express = require("express");
+const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
 const User = require("../models/User");
 const { createResponse } = require("../utils/helpers");
 const { HTTP_STATUS } = require("../utils/my_constants");
 
-const router = express.Router();
-
 router.use(authenticateToken);
 
-router.get("/payment-status", async (req, res) => {
+// Get subscription status
+router.get("/payment-status", (req, res) => {
 	res.status(200).json({
 		success: true,
-		subscriptionStatus: req.user.subscriptionStatus,
+		subscriptionStatus: req.user.subscription?.status || "none",
 	});
 });
 
-// GET /api/v1/users/settings - Get user settings
+// Get user settings
 router.get("/settings", async (req, res) => {
 	try {
-		const user = await User.findById(req.user.uid);
-
+		const user = await User.findOne({ uid: req.user.uid }).lean();
 		if (!user) {
 			return res
 				.status(HTTP_STATUS.NOT_FOUND)
@@ -47,26 +46,26 @@ router.get("/settings", async (req, res) => {
 	}
 });
 
-// PUT /api/v1/users/settings - Update user settings
+// Update user settings
 router.put("/settings", async (req, res) => {
 	try {
 		const { notifications, privacy, displayName, email, timeZone } = req.body;
 
-		const user = await User.findById(req.user.uid);
-
+		const user = await User.findOne({ uid: req.user.uid });
 		if (!user) {
 			return res
 				.status(HTTP_STATUS.NOT_FOUND)
 				.json(createResponse(false, null, "User not found"));
 		}
 
-		await user.updateSettings({
-			notifications,
-			privacy,
-			displayName,
-			email,
-			timeZone,
-		});
+		if (notifications)
+			user.notifications = { ...user.notifications, ...notifications };
+		if (privacy) user.privacy = { ...user.privacy, ...privacy };
+		if (displayName !== undefined) user.name = displayName;
+		if (email !== undefined) user.email = email;
+		if (timeZone !== undefined) user.timeZone = timeZone;
+
+		await user.save();
 
 		res.json(
 			createResponse(

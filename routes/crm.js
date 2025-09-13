@@ -1,22 +1,23 @@
-// routes/crm.js
 const express = require("express");
-const { db, admin } = require("../config/firebase");
-const { authenticateToken } = require("../middleware/auth");
 const router = express.Router();
 
-// Get user's pipeline with custom stages
+const { authenticateToken } = require("../middleware/auth");
+
+const {
+	InstagramAccount,
+	InstagramConversation,
+} = require("../models/Instagram");
+const CRMContact = require("../models/CRMContacts");
+const CRMPipeline = require("../models/CRMPipeline");
+
+// Get or create user's pipeline with default stages
 router.get("/pipeline", authenticateToken, async (req, res) => {
 	try {
-		const pipelineSnap = await db
-			.collection("crm_pipelines")
-			.where("userId", "==", req.user.uid)
-			.limit(1)
-			.get();
+		let pipeline = await CRMPipeline.findOne({ userId: req.user.uid }).lean();
 
-		let pipeline;
-		if (pipelineSnap.empty) {
-			// Create default pipeline with default stages
-			const defaultPipeline = {
+		if (!pipeline) {
+			// Create default pipeline
+			const defaultPipeline = new CRMPipeline({
 				userId: req.user.uid,
 				name: "Sales Pipeline",
 				description: "Default pipeline",
@@ -30,15 +31,11 @@ router.get("/pipeline", authenticateToken, async (req, res) => {
 						order: 2,
 					},
 				],
-				createdAt: admin.firestore.FieldValue.serverTimestamp(),
-				updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-			};
-
-			const docRef = await db.collection("crm_pipelines").add(defaultPipeline);
-			pipeline = { id: docRef.id, ...defaultPipeline };
-		} else {
-			const doc = pipelineSnap.docs[0];
-			pipeline = { id: doc.id, ...doc.data() };
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			});
+			await defaultPipeline.save();
+			pipeline = defaultPipeline.toObject();
 		}
 
 		res.json({ success: true, pipeline });
@@ -52,26 +49,11 @@ router.get("/pipeline", authenticateToken, async (req, res) => {
 router.post("/stages", authenticateToken, async (req, res) => {
 	try {
 		const { name, color } = req.body;
+		if (!name) return res.status(400).json({ error: "Stage name is required" });
 
-		if (!name) {
-			return res.status(400).json({ error: "Stage name is required" });
-		}
+		const pipeline = await CRMPipeline.findOne({ userId: req.user.uid });
+		if (!pipeline) return res.status(404).json({ error: "Pipeline not found" });
 
-		// Get current pipeline
-		const pipelineSnap = await db
-			.collection("crm_pipelines")
-			.where("userId", "==", req.user.uid)
-			.limit(1)
-			.get();
-
-		if (pipelineSnap.empty) {
-			return res.status(404).json({ error: "Pipeline not found" });
-		}
-
-		const pipelineDoc = pipelineSnap.docs[0];
-		const pipeline = pipelineDoc.data();
-
-		// Create new stage
 		const newStage = {
 			id: `stage_${Date.now()}`,
 			name,
@@ -79,13 +61,10 @@ router.post("/stages", authenticateToken, async (req, res) => {
 			order: pipeline.stages.length,
 		};
 
-		// Add stage to pipeline
-		const updatedStages = [...pipeline.stages, newStage];
+		pipeline.stages.push(newStage);
+		pipeline.updatedAt = new Date();
 
-		await pipelineDoc.ref.update({
-			stages: updatedStages,
-			updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-		});
+		await pipeline.save();
 
 		res.json({ success: true, stage: newStage });
 	} catch (error) {
@@ -100,32 +79,25 @@ router.patch("/stages/:stageId", authenticateToken, async (req, res) => {
 		const { stageId } = req.params;
 		const { name, color } = req.body;
 
-		const pipelineSnap = await db
-			.collection("crm_pipelines")
-			.where("userId", "==", req.user.uid)
-			.limit(1)
-			.get();
+		const pipeline = await CRMPipeline.findOne({ userId: req.user.uid });
+		if (!pipeline) return res.status(404).json({ error: "Pipeline not found" });
 
-		if (pipelineSnap.empty) {
-			return res.status(404).json({ error: "Pipeline not found" });
-		}
-
-		const pipelineDoc = pipelineSnap.docs[0];
-		const pipeline = pipelineDoc.data();
-
-		// Update the specific stage
 		const updatedStages = pipeline.stages.map((stage) =>
 			stage.id === stageId
-				? { ...stage, name: name || stage.name, color: color || stage.color }
+				? {
+						...stage.toObject(),
+						name: name || stage.name,
+						color: color || stage.color,
+				  }
 				: stage
 		);
 
-		await pipelineDoc.ref.update({
-			stages: updatedStages,
-			updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-		});
+		pipeline.stages = updatedStages;
+		pipeline.updatedAt = new Date();
+		await pipeline.save();
 
-		const updatedStage = updatedStages.find((s) => s.id === stageId);
+		const updatedStage = updatedStages.find((stage) => stage.id === stageId);
+
 		res.json({ success: true, stage: updatedStage });
 	} catch (error) {
 		console.error("Error updating stage:", error);
@@ -133,47 +105,22 @@ router.patch("/stages/:stageId", authenticateToken, async (req, res) => {
 	}
 });
 
-// Delete stage
+// Delete stage and reassign contacts
 router.delete("/stages/:stageId", authenticateToken, async (req, res) => {
 	try {
 		const { stageId } = req.params;
 
-		const pipelineSnap = await db
-			.collection("crm_pipelines")
-			.where("userId", "==", req.user.uid)
-			.limit(1)
-			.get();
+		const pipeline = await CRMPipeline.findOne({ userId: req.user.uid });
+		if (!pipeline) return res.status(404).json({ error: "Pipeline not found" });
 
-		if (pipelineSnap.empty) {
-			return res.status(404).json({ error: "Pipeline not found" });
-		}
+		pipeline.stages = pipeline.stages.filter((stage) => stage.id !== stageId);
+		pipeline.updatedAt = new Date();
+		await pipeline.save();
 
-		const pipelineDoc = pipelineSnap.docs[0];
-		const pipeline = pipelineDoc.data();
+		const firstStageId = pipeline.stages[0]?.id || "new_lead";
 
-		// Remove the stage
-		const updatedStages = pipeline.stages.filter(
-			(stage) => stage.id !== stageId
-		);
-
-		await pipelineDoc.ref.update({
-			stages: updatedStages,
-			updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-		});
-
-		// Move all contacts in deleted stage to first stage
-		const batch = db.batch();
-		const contactsSnap = await db
-			.collection("crm_contacts")
-			.where("stageId", "==", stageId)
-			.get();
-
-		const firstStageId = updatedStages[0]?.id || "new_lead";
-		contactsSnap.docs.forEach((doc) => {
-			batch.update(doc.ref, { stageId: firstStageId });
-		});
-
-		await batch.commit();
+		// Reassign contacts belonging to deleted stage to first stage
+		await CRMContact.updateMany({ stageId }, { stageId: firstStageId });
 
 		res.json({ success: true });
 	} catch (error) {
@@ -185,36 +132,27 @@ router.delete("/stages/:stageId", authenticateToken, async (req, res) => {
 // Get contacts with their CRM data
 router.get("/contacts", authenticateToken, async (req, res) => {
 	try {
-		// Get user's conversations
-		const accountsSnap = await db
-			.collection("instagram_accounts")
-			.where("user", "==", req.user.uid)
-			.get();
-
-		const accountIds = accountsSnap.docs.map((doc) => doc.data().user_id);
+		const accounts = await InstagramAccount.find({ user: req.user.uid }).lean();
+		const accountIds = accounts.map((acc) => acc.user_id);
 
 		if (accountIds.length === 0) {
 			return res.json({ success: true, contacts: [] });
 		}
 
 		let conversations = [];
-
-		// Get conversations for all user accounts
 		for (const accountId of accountIds) {
-			const conversationsSnap = await db
-				.collection("instagram_conversations")
-				.where("webhook_owner_id", "==", String(accountId))
-				.get();
+			const convs = await InstagramConversation.find({
+				webhook_owner_id: accountId,
+			}).lean();
 
-			conversationsSnap.forEach((doc) => {
-				conversations.push({ id: doc.id, ...doc.data() });
-			});
+			const filteredConvs = convs.filter((conv) =>
+				conv.messages?.some((msg) => msg.sender_id !== accountId)
+			);
+
+			conversations = conversations.concat(filteredConvs);
 		}
 
-		// Get CRM data for these conversations
 		const contactPromises = conversations.map(async (conv) => {
-			const crmSnap = await db.collection("crm_contacts").doc(conv.id).get();
-
 			let crmData = {
 				stageId: "new_lead",
 				notes: "",
@@ -224,8 +162,9 @@ router.get("/contacts", authenticateToken, async (req, res) => {
 				updatedAt: Date.now(),
 			};
 
-			if (crmSnap.exists) {
-				crmData = { ...crmData, ...crmSnap.data() };
+			const crmContact = await CRMContact.findById(conv._id).lean();
+			if (crmContact) {
+				crmData = { ...crmData, ...crmContact };
 			}
 
 			return {
@@ -235,7 +174,6 @@ router.get("/contacts", authenticateToken, async (req, res) => {
 		});
 
 		const contacts = await Promise.all(contactPromises);
-
 		res.json({ success: true, contacts });
 	} catch (error) {
 		console.error("Error fetching contacts:", error);
@@ -243,7 +181,7 @@ router.get("/contacts", authenticateToken, async (req, res) => {
 	}
 });
 
-// Update contact stage (for drag and drop)
+// Update contact stage
 router.patch(
 	"/contacts/:contactId/stage",
 	authenticateToken,
@@ -252,16 +190,16 @@ router.patch(
 			const { contactId } = req.params;
 			const { stageId } = req.body;
 
-			if (!stageId) {
+			if (!stageId)
 				return res.status(400).json({ error: "Stage ID is required" });
-			}
 
-			await db.collection("crm_contacts").doc(contactId).set(
+			await CRMContact.findByIdAndUpdate(
+				contactId,
 				{
 					stageId,
-					updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+					updatedAt: new Date(),
 				},
-				{ merge: true }
+				{ new: true, upsert: true }
 			);
 
 			res.json({ success: true });
@@ -281,16 +219,14 @@ router.patch(
 			const { contactId } = req.params;
 			const { notes } = req.body;
 
-			await db
-				.collection("crm_contacts")
-				.doc(contactId)
-				.set(
-					{
-						notes: notes || "",
-						updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-					},
-					{ merge: true }
-				);
+			await CRMContact.findByIdAndUpdate(
+				contactId,
+				{
+					notes: notes || "",
+					updatedAt: new Date(),
+				},
+				{ new: true, upsert: true }
+			);
 
 			res.json({ success: true });
 		} catch (error) {
@@ -303,31 +239,19 @@ router.patch(
 // Reorder stages
 router.patch("/stages/reorder", authenticateToken, async (req, res) => {
 	try {
-		const { stageIds } = req.body; // Array of stage IDs in new order
+		const { stageIds } = req.body;
 
-		const pipelineSnap = await db
-			.collection("crm_pipelines")
-			.where("userId", "==", req.user.uid)
-			.limit(1)
-			.get();
+		const pipeline = await CRMPipeline.findOne({ userId: req.user.uid });
+		if (!pipeline) return res.status(404).json({ error: "Pipeline not found" });
 
-		if (pipelineSnap.empty) {
-			return res.status(404).json({ error: "Pipeline not found" });
-		}
-
-		const pipelineDoc = pipelineSnap.docs[0];
-		const pipeline = pipelineDoc.data();
-
-		// Reorder stages based on provided order
 		const reorderedStages = stageIds.map((stageId, index) => {
 			const stage = pipeline.stages.find((s) => s.id === stageId);
-			return { ...stage, order: index };
+			return { ...stage.toObject(), order: index };
 		});
 
-		await pipelineDoc.ref.update({
-			stages: reorderedStages,
-			updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-		});
+		pipeline.stages = reorderedStages;
+		pipeline.updatedAt = new Date();
+		await pipeline.save();
 
 		res.json({ success: true, stages: reorderedStages });
 	} catch (error) {

@@ -21,11 +21,15 @@ const Layout: React.FC<LayoutProps> = ({ children, withPadding = true }) => {
 					<Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
 
 					<main
-						className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 dark:bg-gray-900"
+						className={`flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 dark:bg-gray-900 ${
+							!withPadding ? "h-full" : ""
+						}`}
 						id="content"
 					>
 						<div
-							className={`${withPadding ? "container mx-auto px-4 py-6" : ""}`}
+							className={`${
+								withPadding ? "container mx-auto px-4 py-6" : "h-full"
+							}`}
 						>
 							{children}
 						</div>

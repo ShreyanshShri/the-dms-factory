@@ -201,29 +201,45 @@ export default function ChatApp() {
 							key={conv.id}
 							onClick={() => setActiveConv(conv)}
 							className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 ${
-								activeConv?.id === conv.id ? "bg-gray-700" : ""
-							}`}
+								activeConv?.thread_id === conv.thread_id ? "bg-gray-700" : ""
+							} ${!conv.responded ? "unresponded" : ""}`}
 						>
 							<div className="flex items-center justify-between">
-								<h3 className="font-semibold text-white">
-									{conv?.clientAccount?.username}
-								</h3>
-								{conv.unread && (
-									<div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-								)}
-							</div>
-							<p className="text-sm text-gray-400 truncate">
-								{conv.lastMessage?.text || "No messages"}
-							</p>
-							<div className="flex flex-wrap gap-1 mt-2">
-								{(conv.tags || []).map((tag: any) => (
-									<span
-										key={tag}
-										className="px-2 py-1 bg-blue-900/30 text-blue-300 text-xs rounded-full"
-									>
-										{tag}
-									</span>
-								))}
+								<div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg shadow-sm mr-3">
+									{conv.clientAccount?.username?.[0]?.toUpperCase() || "U"}
+								</div>
+								<div className="flex-1 min-w-0">
+									<h3 className="font-semibold text-white truncate">
+										{conv?.clientAccount?.username}
+									</h3>
+									<p className="text-sm text-gray-400 truncate">
+										{conv.last_message || "No messages"}
+									</p>
+									{(conv.tags || []).length > 0 && (
+										<div className="flex flex-wrap gap-1 mt-2">
+											{conv.tags.slice(0, 2).map((tag: any) => (
+												<span
+													key={tag}
+													className="px-2 py-1 bg-blue-900/30 text-blue-300 text-xs rounded-full"
+												>
+													{tag}
+												</span>
+											))}
+											{conv.tags.length > 2 && (
+												<span className="px-2 py-1 text-blue-300 text-xs rounded-full">
+													+{conv.tags.length - 2}
+												</span>
+											)}
+										</div>
+									)}
+								</div>
+								<div className="thread-right-panel ml-3 flex items-center">
+									{conv?.unread_count > 0 && (
+										<div className="unread-count w-6 h-6 flex items-center justify-center bg-blue-500 text-white rounded-full text-xs font-semibold">
+											{conv.unread_count}
+										</div>
+									)}
+								</div>
 							</div>
 						</div>
 					))}
@@ -275,12 +291,14 @@ export default function ChatApp() {
 								<div
 									key={i}
 									className={`flex ${
-										m.from === "business" ? "justify-end" : "justify-start"
+										m.sender_id !== activeConv.clientAccount.id
+											? "justify-end"
+											: "justify-start"
 									}`}
 								>
 									<div
 										className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-											m.from === "business"
+											m.sender_id === activeConv.clientAccount.id
 												? "bg-blue-600 text-white"
 												: "bg-gray-700 text-white"
 										}`}

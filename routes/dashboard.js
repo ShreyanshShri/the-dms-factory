@@ -2,9 +2,15 @@ const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
 const { subscribed } = require("../middleware/subscribed");
-const { db, admin } = require("../config/firebase");
 const { createResponse } = require("../utils/helpers");
 const { HTTP_STATUS } = require("../utils/my_constants");
+
+const Campaign = require("../models/campaign");
+const {
+	InstagramAccount,
+	InstagramConversation,
+} = require("../models/Instagram");
+const Analytics = require("../models/analytics");
 
 router.use(authenticateToken);
 router.use(subscribed);
@@ -14,29 +20,9 @@ router.get("/stats", async (req, res) => {
 	try {
 		const userId = req.user.uid;
 
-		// Get user's campaigns
-		const campaignsSnapshot = await db
-			.collection("campaigns")
-			.where("userId", "==", userId)
-			.get();
+		const campaigns = await Campaign.find({ userId }).lean();
+		const accounts = await InstagramAccount.find({ user: userId }).lean();
 
-		const campaigns = campaignsSnapshot.docs.map((doc) => ({
-			id: doc.id,
-			...doc.data(),
-		}));
-
-		// Get user's accounts
-		const accountsSnapshot = await db
-			.collection("accounts")
-			.where("userId", "==", userId)
-			.get();
-
-		const accounts = accountsSnapshot.docs.map((doc) => ({
-			id: doc.id,
-			...doc.data(),
-		}));
-
-		// Calculate stats
 		const totalCampaigns = campaigns.length;
 		const activeCampaigns = campaigns.filter(
 			(c) => c.status === "active"
@@ -49,28 +35,22 @@ router.get("/stats", async (req, res) => {
 		const activeAccounts = accounts.filter((a) => a.status === "active").length;
 		const pausedAccounts = accounts.filter((a) => a.status === "paused").length;
 
-		// Get today's messages (last 24 hours)
 		const yesterday = Date.now() - 24 * 60 * 60 * 1000;
-		const todayAnalyticsSnapshot = await db
-			.collection("analytics")
-			.where("createdAt", ">=", yesterday)
-			.get();
-
-		const todayMessages = todayAnalyticsSnapshot.docs.filter((doc) => {
-			const data = doc.data();
-			return (
-				campaigns.some((c) => c.id === data.campaignID) &&
-				["initialdmsent", "followup"].includes(data.status)
-			);
+		const analyticsDocs = await Analytics.find({
+			createdAt: { $gte: new Date(yesterday) },
 		});
 
-		const todayReplies = todayAnalyticsSnapshot.docs.filter((doc) => {
-			const data = doc.data();
-			return (
-				campaigns.some((c) => c.id === data.campaignID) &&
-				data.status === "replyreceived"
-			);
-		});
+		const todayMessages = analyticsDocs.filter(
+			(d) =>
+				campaigns.some((c) => String(c._id) === d.campaignID) &&
+				["initialdmsent", "followup"].includes(d.status)
+		);
+
+		const todayReplies = analyticsDocs.filter(
+			(d) =>
+				campaigns.some((c) => String(c._id) === d.campaignID) &&
+				d.status === "replyreceived"
+		);
 
 		const dmsSentToday = todayMessages.length;
 		const repliesToday = todayReplies.length;
@@ -98,72 +78,51 @@ router.get("/stats", async (req, res) => {
 	}
 });
 
-// Get performance data for charts (last 7 days)
+// Get performance data for charts (last X days)
 router.get("/performance", async (req, res) => {
 	try {
 		const userId = req.user.uid;
-		const { timeRange = 7 } = req.query; // Default 7 days
+		const { timeRange = 7 } = req.query; // days
+		const daysAgo = parseInt(timeRange);
 
-		// Get user's campaigns
-		const campaignsSnapshot = await db
-			.collection("campaigns")
-			.where("userId", "==", userId)
-			.get();
-
-		const campaignIds = campaignsSnapshot.docs.map((doc) => doc.id);
-
-		if (campaignIds.length === 0) {
+		const campaigns = await Campaign.find({ userId }).lean();
+		if (campaigns.length === 0) {
 			return res.json(
 				createResponse(true, {
-					daily: {
-						labels: [],
-						datasets: [],
-					},
+					daily: { labels: [], datasets: [] },
 				})
 			);
 		}
+		const campaignIds = campaigns.map((c) => String(c._id));
+		const startDate = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+		const analyticsDocs = await Analytics.find({
+			createdAt: { $gte: startDate },
+		}).sort("createdAt");
 
-		// Get analytics data for the specified time range
-		const daysAgo = parseInt(timeRange);
-		const startDate = Date.now() - daysAgo * 24 * 60 * 60 * 1000;
-
-		const analyticsSnapshot = await db
-			.collection("analytics")
-			.where("createdAt", ">=", startDate)
-			.orderBy("createdAt", "asc")
-			.get();
-
-		// Process data by day
 		const dailyData = {};
 		const today = new Date();
-
-		// Initialize days
 		for (let i = daysAgo - 1; i >= 0; i--) {
 			const date = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
 			const dayKey = date.toLocaleDateString("en-US", { weekday: "short" });
 			dailyData[dayKey] = { messages: 0, replies: 0 };
 		}
 
-		// Aggregate analytics data
-		analyticsSnapshot.docs.forEach((doc) => {
-			const data = doc.data();
-			if (campaignIds.includes(data.campaignID)) {
-				const date = new Date(data.createdAt);
-				const dayKey = date.toLocaleDateString("en-US", { weekday: "short" });
-
-				if (dailyData[dayKey]) {
-					if (["initialdmsent", "followup"].includes(data.status)) {
-						dailyData[dayKey].messages++;
-					} else if (data.status === "replyreceived") {
-						dailyData[dayKey].replies++;
-					}
-				}
+		analyticsDocs.forEach((doc) => {
+			if (!campaignIds.includes(doc.campaignID)) return;
+			const dayKey = new Date(doc.createdAt).toLocaleDateString("en-US", {
+				weekday: "short",
+			});
+			if (!dailyData[dayKey]) return;
+			if (["initialdmsent", "followup"].includes(doc.status)) {
+				dailyData[dayKey].messages++;
+			} else if (doc.status === "replyreceived") {
+				dailyData[dayKey].replies++;
 			}
 		});
 
 		const labels = Object.keys(dailyData);
-		const messagesData = Object.values(dailyData).map((d) => d.messages);
-		const repliesData = Object.values(dailyData).map((d) => d.replies);
+		const messagesData = labels.map((label) => dailyData[label].messages);
+		const repliesData = labels.map((label) => dailyData[label].replies);
 
 		res.json(
 			createResponse(true, {
@@ -196,55 +155,36 @@ router.get("/performance", async (req, res) => {
 	}
 });
 
-// Get campaign rankings
+// Get campaign rankings (top 5 campaigns last 7 days)
 router.get("/campaign-rankings", async (req, res) => {
 	try {
 		const userId = req.user.uid;
+		const campaigns = await Campaign.find({ userId }).lean();
+		const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+		const analyticsDocs = await Analytics.find({
+			createdAt: { $gte: weekAgo },
+		});
 
-		// Get user's campaigns
-		const campaignsSnapshot = await db
-			.collection("campaigns")
-			.where("userId", "==", userId)
-			.get();
-
-		const campaigns = campaignsSnapshot.docs.map((doc) => ({
-			id: doc.id,
-			...doc.data(),
-		}));
-
-		// Get analytics for each campaign (last 7 days)
-		const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-		const analyticsSnapshot = await db
-			.collection("analytics")
-			.where("createdAt", ">=", weekAgo)
-			.get();
-
-		// Aggregate by campaign
 		const campaignStats = {};
-		campaigns.forEach((campaign) => {
-			campaignStats[campaign.id] = {
-				name: campaign.name,
-				platform: campaign.platform,
+		campaigns.forEach((c) => {
+			campaignStats[String(c._id)] = {
+				name: c.name,
+				platform: c.platform,
 				dms: 0,
 				replies: 0,
 			};
 		});
 
-		analyticsSnapshot.docs.forEach((doc) => {
-			const data = doc.data();
-			if (campaignStats[data.campaignID]) {
-				if (["initialdmsent", "followup"].includes(data.status)) {
-					campaignStats[data.campaignID].dms++;
-				} else if (data.status === "replyreceived") {
-					campaignStats[data.campaignID].replies++;
-				}
-			}
+		analyticsDocs.forEach((doc) => {
+			const cStat = campaignStats[doc.campaignID];
+			if (!cStat) return;
+			if (["initialdmsent", "followup"].includes(doc.status)) cStat.dms++;
+			else if (doc.status === "replyreceived") cStat.replies++;
 		});
 
-		// Convert to array and sort by DMs sent
 		const rankings = Object.values(campaignStats)
 			.sort((a, b) => b.dms - a.dms)
-			.slice(0, 5); // Top 5
+			.slice(0, 5);
 
 		res.json(createResponse(true, rankings));
 	} catch (error) {
@@ -255,72 +195,55 @@ router.get("/campaign-rankings", async (req, res) => {
 	}
 });
 
-// Get recent activity
+// Get recent activity (limit by query param)
 router.get("/recent-activity", async (req, res) => {
 	try {
 		const userId = req.user.uid;
-		const { limit = 10 } = req.query;
+		const limit = parseInt(req.query.limit) || 10;
 
-		// Get user's campaigns
-		const campaignsSnapshot = await db
-			.collection("campaigns")
-			.where("userId", "==", userId)
-			.get();
-
-		const campaignIds = campaignsSnapshot.docs.map((doc) => doc.id);
+		const campaigns = await Campaign.find({ userId }).lean();
+		const campaignIds = campaigns.map((c) => String(c._id));
 		const campaignNames = {};
-		campaignsSnapshot.docs.forEach((doc) => {
-			campaignNames[doc.id] = doc.data().name;
+		campaigns.forEach((c) => {
+			campaignNames[String(c._id)] = c.name;
 		});
 
-		if (campaignIds.length === 0) {
-			return res.json(createResponse(true, []));
-		}
+		if (campaignIds.length === 0) return res.json(createResponse(true, []));
 
-		// Get recent analytics
-		const analyticsSnapshot = await db
-			.collection("analytics")
-			.orderBy("createdAt", "desc")
-			.limit(parseInt(limit) * 2) // Get more to filter user's data
-			.get();
+		const analyticsDocs = await Analytics.find({})
+			.sort({ createdAt: -1 })
+			.limit(limit * 2);
 
 		const activities = [];
-		analyticsSnapshot.docs.forEach((doc) => {
-			const data = doc.data();
-			if (
-				campaignIds.includes(data.campaignID) &&
-				activities.length < parseInt(limit)
-			) {
+		analyticsDocs.some((doc) => {
+			if (campaignIds.includes(doc.campaignID) && activities.length < limit) {
 				let action = "";
-				if (data.status === "initialdmsent") {
-					action = `Sent initial DM in ${campaignNames[data.campaignID]}`;
-				} else if (data.status === "followup") {
-					action = `Sent follow-up in ${campaignNames[data.campaignID]}`;
-				} else if (data.status === "replyreceived") {
-					action = `Received reply in ${campaignNames[data.campaignID]}`;
+				if (doc.status === "initialdmsent") {
+					action = `Sent initial DM in ${campaignNames[doc.campaignID]}`;
+				} else if (doc.status === "followup") {
+					action = `Sent follow-up in ${campaignNames[doc.campaignID]}`;
+				} else if (doc.status === "replyreceived") {
+					action = `Received reply in ${campaignNames[doc.campaignID]}`;
 				}
-
 				if (action) {
-					const time = new Date(data.createdAt);
+					const time = new Date(doc.createdAt);
 					const now = new Date();
 					const diffMinutes = Math.floor((now - time) / (1000 * 60));
-
 					let timeStr = "";
-					if (diffMinutes < 60) {
-						timeStr = `${diffMinutes}m ago`;
-					} else if (diffMinutes < 1440) {
+					if (diffMinutes < 60) timeStr = `${diffMinutes}m ago`;
+					else if (diffMinutes < 1440)
 						timeStr = `${Math.floor(diffMinutes / 60)}h ago`;
-					} else {
-						timeStr = `${Math.floor(diffMinutes / 1440)}d ago`;
-					}
+					else timeStr = `${Math.floor(diffMinutes / 1440)}d ago`;
 
 					activities.push({
 						action,
 						time: timeStr,
-						platform: data.platform || "instagram",
+						platform: doc.platform || "instagram",
 					});
 				}
+				return false;
 			}
+			return false;
 		});
 
 		res.json(createResponse(true, activities));
@@ -332,19 +255,11 @@ router.get("/recent-activity", async (req, res) => {
 	}
 });
 
-// Add to your existing dashboard routes
-
-// Get campaign metrics
+// Campaign metrics for dashboard
 router.get("/campaign-metrics", async (req, res) => {
 	try {
 		const userId = req.user.uid;
-
-		const campaignsSnapshot = await db
-			.collection("campaigns")
-			.where("userId", "==", userId)
-			.get();
-
-		const campaigns = campaignsSnapshot.docs.map((doc) => doc.data());
+		const campaigns = await Campaign.find({ userId }).lean();
 
 		const metrics = {
 			totalCampaigns: campaigns.length,
@@ -363,85 +278,48 @@ router.get("/campaign-metrics", async (req, res) => {
 	}
 });
 
-// Get campaigns with analytics
-router.get("/campaigns-analytics", async (req, res) => {
-	try {
-		const userId = req.user.uid;
-
-		// This would combine campaign data with their analytics
-		// You can implement this based on your specific needs
-	} catch (error) {
-		console.error("Error fetching campaigns analytics:", error);
-		res
-			.status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
-			.json(createResponse(false, null, "Failed to fetch campaigns analytics"));
-	}
-});
-
-// Add this route to your dashboard.js file
+// Recent messages endpoint
 router.get("/recent-messages", authenticateToken, async (req, res) => {
 	try {
 		const { limit = 50 } = req.query;
+		const accounts = await InstagramAccount.find({ user: req.user.uid }).lean();
 
-		// Get user's Instagram accounts
-		const accountsSnap = await db
-			.collection("instagram_accounts")
-			.where("user", "==", req.user.uid)
-			.get();
+		if (accounts.length === 0) return res.json({ success: true, messages: [] });
 
-		if (accountsSnap.empty) {
-			return res.json({ success: true, messages: [] });
-		}
-
-		const accountIds = accountsSnap.docs.map((doc) => doc.data().user_id);
-
-		// Get recent conversations for user's accounts
-		const conversationsSnap = await db
-			.collection("instagram_conversations")
-			.where("webhook_owner_id", "in", accountIds.map(String))
-			.orderBy("last_time", "desc")
+		const accountIds = accounts.map((acc) => String(acc.user_id));
+		const conversations = await InstagramConversation.find({
+			webhook_owner_id: { $in: accountIds },
+		})
+			.sort({ last_time: -1 })
 			.limit(parseInt(limit))
-			.get();
+			.lean();
 
 		const recentMessages = [];
 
-		for (const doc of conversationsSnap.docs) {
-			const data = doc.data();
-
-			// Get campaign name if available
+		for (const conv of conversations) {
 			let campaignName = "N/A";
-			if (data.campaignId) {
+			if (conv.campaignId) {
 				try {
-					const campaignDoc = await db
-						.collection("campaigns")
-						.doc(data.campaignId)
-						.get();
-					if (campaignDoc.exists) {
-						campaignName =
-							campaignDoc.data().name ||
-							campaignDoc.data().title ||
-							"Unnamed Campaign";
-					}
+					const campaign = await Campaign.findById(conv.campaignId).lean();
+					if (campaign) campaignName = campaign.name || "Unnamed Campaign";
 				} catch (err) {
 					console.log("Campaign fetch error:", err);
 				}
 			}
 
-			// Format timestamp
-			const timestamp = data.last_time?.toDate();
-			const timeAgo = timestamp ? formatTimeAgo(timestamp) : "Unknown";
+			const timeAgo = formatTimeAgo(conv.last_time);
 
 			recentMessages.push({
-				id: doc.id,
-				account: data.businessAccount?.username || "Unknown",
-				recipient: data.clientAccount?.username || "Unknown",
-				type: data.responded ? "sent" : "reply",
-				content: data.last_message || "No message content",
+				id: conv._id,
+				account: conv.businessAccount?.username || "Unknown",
+				recipient: conv.clientAccount?.username || "Unknown",
+				type: conv.responded ? "sent" : "reply",
+				content: conv.last_message || "No message content",
 				timestamp: timeAgo,
 				campaign: campaignName,
-				interested: data.interested || false,
-				unread_count: data.unread_count || 0,
-				tags: data.tags || [],
+				interested: conv.interested || false,
+				unread_count: conv.unread_count || 0,
+				tags: conv.tags || [],
 			});
 		}
 
@@ -452,19 +330,18 @@ router.get("/recent-messages", authenticateToken, async (req, res) => {
 	}
 });
 
-// Helper function to format time ago
+// Helper function for relative time formatting
 function formatTimeAgo(date) {
+	if (!date) return "Unknown";
 	const now = new Date();
-	const diffInSeconds = Math.floor((now - date) / 1000);
+	const diffSeconds = Math.floor((now - new Date(date)) / 1000);
 
-	if (diffInSeconds < 60) return "Just now";
-	if (diffInSeconds < 3600)
-		return `${Math.floor(diffInSeconds / 60)} minutes ago`;
-	if (diffInSeconds < 86400)
-		return `${Math.floor(diffInSeconds / 3600)} hours ago`;
-	if (diffInSeconds < 604800)
-		return `${Math.floor(diffInSeconds / 86400)} days ago`;
-	return date.toLocaleDateString();
+	if (diffSeconds < 60) return "Just now";
+	if (diffSeconds < 3600) return `${Math.floor(diffSeconds / 60)} minutes ago`;
+	if (diffSeconds < 86400) return `${Math.floor(diffSeconds / 3600)} hours ago`;
+	if (diffSeconds < 604800)
+		return `${Math.floor(diffSeconds / 86400)} days ago`;
+	return new Date(date).toLocaleDateString();
 }
 
 module.exports = router;

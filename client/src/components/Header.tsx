@@ -1,13 +1,5 @@
 import React, { useState } from "react";
-import {
-	Search,
-	Bell,
-	User,
-	Menu,
-	Sun,
-	Moon,
-	MessageSquare,
-} from "lucide-react";
+import { Search, Menu, Sun, Moon, MessageSquare } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -50,7 +42,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 						<div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-sm flex items-center justify-center shadow-sm">
 							<MessageSquare className="w-3 h-3 text-white" />
 						</div>
-						<span className="text-xs font-bold text-gray-900 dark:text-white tracking-tight hidden sm:block">
+						<span className="text-sm tracking-wider font-bold text-gray-900 dark:text-white tracking-tight hidden sm:block">
 							Buildfluence
 						</span>
 					</div>
@@ -104,12 +96,6 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 						)}
 					</button>
 
-					{/* Notifications */}
-					<button className="relative p-0.5 rounded-sm hover:bg-gray-100 dark:hover:bg-white/10 transition-all duration-200 group">
-						<Bell className="h-3 w-3 text-gray-600 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition-colors duration-200" />
-						<span className="absolute top-0 right-0 w-1 h-1 bg-red-500 rounded-full animate-pulse"></span>
-					</button>
-
 					{/* User Menu */}
 					<button className="flex items-center space-x-1 p-0.5 rounded-sm hover:bg-gray-100 dark:hover:bg-white/10 transition-all duration-200 group">
 						<div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
@@ -125,7 +111,6 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 						<span className="hidden lg:block text-xs font-medium text-gray-700 dark:text-white group-hover:text-gray-900 dark:group-hover:text-blue-400 transition-colors duration-200">
 							{user === null ? "Loading..." : user?.name}
 						</span>
-						<User className="hidden lg:block h-2.5 w-2.5 text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-white transition-colors duration-200" />
 					</button>
 					<button
 						className="flex items-center space-x-1 p-0.5 px-1 rounded-sm dark:bg-white/20 bg-gray-100 hover:bg-gray-300 dark:hover:bg-white/10 transition-all duration-200 group"

@@ -1,22 +1,30 @@
 const express = require("express");
 const router = express.Router();
-const { authenticateToken } = require("../middleware/auth");
-const { subscribed } = require("../middleware/subscribed");
-const { db, admin } = require("../config/firebase");
 
-// Import services
-const LeadService = require("../services/leadService");
-const RateService = require("../services/rateService");
-const WorkingHoursService = require("../services/workingHoursService");
-
-// Import utils
 const { createResponse, validateRequiredFields } = require("../utils/helpers");
 const { HTTP_STATUS } = require("../utils/my_constants");
+const Campaign = require("../models/Campaign");
+const Lead = require("../models/Lead");
+const LeadService = require("../services/leadService");
+const WorkingHoursService = require("../services/workingHoursService");
+const RateService = require("../services/rateService");
+const Analytics = require("../models/Analytics");
+const Account = require("../models/Account");
+
+const { subscribed } = require("../middleware/subscribed");
+const { authenticateToken } = require("../middleware/auth");
 
 router.use(authenticateToken);
 router.use(subscribed);
 
-// POST /api/v1/campaign/create - Create new campaign
+function toFirestoreTimestamp(dateInput) {
+	const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+	return {
+		_seconds: Math.floor(date.getTime() / 1000),
+		_nanoseconds: (date.getTime() % 1000) * 1000000,
+	};
+}
+
 router.post("/create", async (req, res) => {
 	try {
 		const {
@@ -29,18 +37,18 @@ router.post("/create", async (req, res) => {
 			messageLimits,
 			followUser,
 			autoLikeStory,
-			autoLikeNewestPost,
+			autoLikeNewest,
 			tag,
 			context,
 		} = req.body;
 
+		// Validate required fields
 		const missingFields = validateRequiredFields(req.body, [
 			"name",
 			"platform",
 			"leads",
 			"variants",
 		]);
-
 		if (missingFields.length > 0) {
 			return res
 				.status(HTTP_STATUS.BAD_REQUEST)
@@ -60,7 +68,7 @@ router.post("/create", async (req, res) => {
 					createResponse(
 						false,
 						null,
-						'Platform must be either "instagram" or "twitter"'
+						'Platform must be "instagram" or "twitter"'
 					)
 				);
 		}
@@ -84,7 +92,7 @@ router.post("/create", async (req, res) => {
 		}
 
 		const invalidVariants = variants.filter(
-			(variant) => !variant.message || variant.message.trim() === ""
+			(v) => !v.message || v.message.trim() === ""
 		);
 		if (invalidVariants.length > 0) {
 			return res
@@ -98,13 +106,14 @@ router.post("/create", async (req, res) => {
 				);
 		}
 
+		// Process and deduplicate leads
 		const processedLeads = [
 			...new Set(
 				leads.map((lead) =>
 					typeof lead === "string" ? lead.replace("@", "").trim() : lead
 				)
 			),
-		].filter((lead) => lead && lead.length > 0);
+		].filter(Boolean);
 
 		if (processedLeads.length === 0) {
 			return res
@@ -112,79 +121,60 @@ router.post("/create", async (req, res) => {
 				.json(createResponse(false, null, "No valid leads provided"));
 		}
 
-		const campaignRef = db.collection("campaigns").doc();
-		const campaignId = campaignRef.id;
-		const campaignData = {
+		const now = toFirestoreTimestamp(new Date());
+
+		// Create campaign document
+		const campaign = new Campaign({
 			userId: req.user.uid,
 			name: name.trim(),
-			tag: tag.trim(),
-			description: description?.trim() || name.trim(),
-			platform: platform,
+			tag: tag ? tag.trim() : "",
+			description: description ? description.trim() : name.trim(),
+			platform,
 			status: "ready",
 			allLeads: processedLeads.join("\n") + "\n",
 			totalLeads: processedLeads.length,
-			variants: variants.map((variant) => ({
-				message: variant.message.trim(),
-			})),
-			context: context?.trim() || "",
+			variants: variants.map((v) => ({ message: v.message.trim() })),
+			context: context ? context.trim() : "",
 			workingHours: workingHours || { start: 0, end: 24 },
 			messageLimits: messageLimits || { min: 35, max: 41 },
 			followUser: followUser || false,
 			autoLikeStory: autoLikeStory || false,
-			autoLikeNewestPost: autoLikeNewestPost || false,
+			autoLikeNewestPost: autoLikeNewest || false,
 			withinWorkingHours: true,
-			createdAt: Date.now(),
-			updatedAt: Date.now(),
-			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-		};
-
-		await db.runTransaction(async (transaction) => {
-			transaction.set(campaignRef, campaignData);
-
-			const batchSize = 400;
-			const leadBatches = [];
-			for (let i = 0; i < processedLeads.length; i += batchSize) {
-				leadBatches.push(processedLeads.slice(i, i + batchSize));
-			}
-
-			if (leadBatches.length > 0) {
-				const firstBatch = leadBatches[0];
-				firstBatch.forEach((username) => {
-					const leadRef = db.collection("leads").doc();
-					transaction.set(leadRef, {
-						campaignId: campaignId,
-						username: username,
-						type: "initial",
-						status: "ready",
-						sent: false,
-						baseDate: Date.now(),
-						assignedAccount: "",
-						followUps: [],
-						assignedAt: null,
-						lastReassignedAt: null,
-						previousAccount: null,
-						reassignmentCount: 0,
-					});
-				});
-			}
+			createdAt: now,
+			updatedAt: now,
+			lastUpdated: now,
 		});
 
-		if (processedLeads.length > 400) {
-			const remainingLeads = processedLeads.slice(400);
-			const LeadService = require("../services/leadService");
-			await LeadService.createLeadsFromCampaign(campaignId, remainingLeads);
-		}
+		await campaign.save();
 
-		console.log(
-			`Created campaign ${campaignId} with ${processedLeads.length} leads`
-		);
+		// Insert leads in batches
+		const batchSize = 400;
+		if (processedLeads.length > batchSize) {
+			await LeadService.createLeadsFromCampaign(
+				campaign._id.toString(),
+				processedLeads.slice(0, batchSize)
+			);
+			const remaining = processedLeads.slice(batchSize);
+			if (remaining.length > 0) {
+				await LeadService.createLeadsFromCampaign(
+					campaign._id.toString(),
+					remaining
+				);
+			}
+		} else {
+			await LeadService.createLeadsFromCampaign(
+				campaign._id.toString(),
+				processedLeads
+			);
+		}
 
 		res.status(HTTP_STATUS.CREATED).json(
 			createResponse(
 				true,
 				{
-					id: campaignId,
-					...campaignData,
+					id: campaign._id,
+					...campaign.toObject(),
 					totalLeads: processedLeads.length,
 				},
 				"Campaign created successfully"
@@ -201,25 +191,19 @@ router.post("/create", async (req, res) => {
 // GET /api/v1/campaign/ - Get all campaigns
 router.get("/", async (req, res) => {
 	try {
-		const campaignsRef = db.collection("campaigns");
-		const snapshot = await campaignsRef
-			.where("userId", "==", req.user.uid)
-			.get();
+		const campaigns = await Campaign.find({ userId: req.user.uid }).lean();
 
-		const campaigns = [];
-		snapshot.forEach((doc) => {
-			campaigns.push({
-				id: doc.id,
-				...doc.data(),
-				leads: [],
-				leadsCount: doc.data().totalLeads,
-			});
-		});
+		const responseCampaigns = campaigns.map((campaign) => ({
+			id: campaign._id,
+			...campaign,
+			leads: [],
+			leadsCount: campaign.totalLeads,
+		}));
 
 		res.json({
 			name: req.user.name || "User",
 			isSubscribed: req.user.isSubscribed,
-			campaigns: campaigns,
+			campaigns: responseCampaigns,
 		});
 	} catch (error) {
 		console.error("Error fetching campaigns:", error);
@@ -229,24 +213,21 @@ router.get("/", async (req, res) => {
 	}
 });
 
-// DELETE /api/v1/campaign/:campaignId - Delete a campaign
+// DELETE /api/v1/campaign/:campaignId - Delete campaign, leads, and unlink accounts
 router.delete("/:campaignId", async (req, res) => {
 	try {
 		const { campaignId } = req.params;
-		const campaignRef = db.collection("campaigns").doc(campaignId);
-		const campaignSnap = await campaignRef.get();
+		const campaign = await Campaign.findById(campaignId);
 
-		if (!campaignSnap.exists) {
+		if (!campaign) {
 			return res
-				.status(HTTP_STATUS.NOT_FOUND)
+				.status(404)
 				.json(createResponse(false, null, "Campaign not found"));
 		}
 
-		const campaignData = campaignSnap.data();
-
-		if (campaignData.userId !== req.user.uid) {
+		if (campaign.userId.toString() !== req.user.uid) {
 			return res
-				.status(HTTP_STATUS.FORBIDDEN)
+				.status(403)
 				.json(
 					createResponse(
 						false,
@@ -256,62 +237,26 @@ router.delete("/:campaignId", async (req, res) => {
 				);
 		}
 
-		if (campaignData.status === "active") {
+		if (campaign.status === "active") {
 			return res
-				.status(HTTP_STATUS.BAD_REQUEST)
+				.status(400)
 				.json(createResponse(false, null, "Cannot delete an active campaign"));
 		}
 
-		const BATCH_LIMIT = 500;
-		const deleteOps = [];
-		let batch = db.batch();
-		let count = 0;
+		// Delete all leads for this campaign in one go
+		await Lead.deleteMany({ campaignId });
 
-		const leadsQuery = db
-			.collection("leads")
-			.where("campaignId", "==", campaignId);
-		const leadsSnap = await leadsQuery.get();
-
-		for (const doc of leadsSnap.docs) {
-			batch.delete(doc.ref);
-			count++;
-			if (count === BATCH_LIMIT) {
-				deleteOps.push(batch.commit());
-				batch = db.batch();
-				count = 0;
-			}
-		}
-
-		const accountsQuery = db
-			.collection("accounts")
-			.where("currentCampaignId", "==", campaignId);
-		const accountsSnap = await accountsQuery.get();
-
-		for (const doc of accountsSnap.docs) {
-			batch.update(doc.ref, { currentCampaignId: null });
-			count++;
-			if (count === BATCH_LIMIT) {
-				deleteOps.push(batch.commit());
-				batch = db.batch();
-				count = 0;
-			}
-		}
-
-		batch.delete(campaignRef);
-		count++;
-
-		if (count > 0) {
-			deleteOps.push(batch.commit());
-		}
-
-		await Promise.all(deleteOps);
-
-		console.log(
-			`Deleted campaign ${campaignId}, ${leadsSnap.size} leads, and updated ${accountsSnap.size} accounts`
+		// Unset currentCampaignId for all affected accounts
+		await Account.updateMany(
+			{ currentCampaignId: campaignId },
+			{ $unset: { currentCampaignId: "" } }
 		);
 
+		// Delete the campaign itself
+		await Campaign.findByIdAndDelete(campaignId);
+
 		res
-			.status(HTTP_STATUS.OK)
+			.status(200)
 			.json(
 				createResponse(
 					true,
@@ -322,7 +267,7 @@ router.delete("/:campaignId", async (req, res) => {
 	} catch (error) {
 		console.error("Error deleting campaign:", error);
 		res
-			.status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+			.status(500)
 			.json(createResponse(false, null, "Failed to delete campaign"));
 	}
 });
@@ -340,63 +285,45 @@ router.post("/start", async (req, res) => {
 			});
 		}
 
-		const campaignDoc = await db.collection("campaigns").doc(campaignID).get();
-		if (!campaignDoc.exists || campaignDoc.data().userId !== req.user.uid) {
+		const campaign = await Campaign.findById(campaignID);
+		if (!campaign || campaign.userId.toString() !== req.user.uid) {
 			return res
 				.status(404)
 				.json({ success: false, message: "Campaign not found" });
 		}
 
-		const existingAccountQuery = await db
-			.collection("accounts")
-			.where("userId", "==", req.user.uid)
-			.where("widgetId", "==", widgetId)
-			.limit(1)
-			.get();
+		let account = await Account.findOne({
+			userId: req.user.uid,
+			widgetId: widgetId,
+		});
 
-		console.log("userId", req.user.uid);
-		console.log("widgetId", widgetId);
-		console.log("existingAccountQuery", existingAccountQuery);
-
-		let accountDoc;
-		let accountData;
-
-		if (!existingAccountQuery.empty) {
-			accountDoc = existingAccountQuery.docs[0];
-			accountData = {
-				displayName,
-				platform: campaignDoc.data().platform,
-				status: "active",
-				currentCampaignId: campaignID,
-				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-				pendingLeadsCount: 0,
-			};
-
-			await accountDoc.ref.update(accountData);
-
-			const updatedDoc = await accountDoc.ref.get();
-			accountData = { id: updatedDoc.id, ...updatedDoc.data() };
+		const now = toFirestoreTimestamp(Date.now());
+		if (account) {
+			account.displayName = displayName;
+			account.platform = campaign.platform;
+			account.status = "active";
+			account.currentCampaignId = campaignID;
+			account.lastUpdated = now;
+			account.pendingLeadsCount = 0;
+			await account.save();
 		} else {
-			accountData = {
+			account = new Account({
 				userId: req.user.uid,
-				widgetId: widgetId,
+				widgetId,
 				displayName,
-				platform: campaignDoc.data().platform,
+				platform: campaign.platform,
 				status: "active",
 				currentCampaignId: campaignID,
-				createdAt: Date.now(),
-				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+				createdAt: now,
+				lastUpdated: now,
 				pendingLeadsCount: 0,
-			};
-
-			const newAccountRef = await db.collection("accounts").add(accountData);
-			accountData.id = newAccountRef.id;
+			});
+			await account.save();
 		}
 
-		await db.collection("campaigns").doc(campaignID).update({
-			status: "active",
-			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-		});
+		campaign.status = "active";
+		campaign.lastUpdated = now;
+		await campaign.save();
 
 		await LeadService.assignLeadsToAccount(campaignID, widgetId, 24);
 
@@ -404,16 +331,16 @@ router.post("/start", async (req, res) => {
 			success: true,
 			message:
 				"Campaign started, account created/updated. Lead assignment will proceed in the background.",
-			accountId: accountData.id,
+			accountId: account._id,
 			account: {
-				accountId: accountData.id,
-				widgetId: accountData.widgetId,
-				displayName: accountData.displayName,
-				createdAt: accountData.createdAt,
-				campaignId: accountData.currentCampaignId,
-				lastUpdated: accountData.lastUpdated,
-				status: accountData.status,
-				pendingLeadsCount: accountData.pendingLeadsCount,
+				accountId: account._id,
+				widgetId: account.widgetId,
+				displayName: account.displayName,
+				createdAt: account.createdAt,
+				campaignId: account.currentCampaignId,
+				lastUpdated: account.lastUpdated,
+				status: account.status,
+				pendingLeadsCount: account.pendingLeadsCount,
 			},
 		});
 	} catch (error) {
@@ -427,103 +354,100 @@ router.post("/start", async (req, res) => {
 // PATCH /api/v1/campaign/start-all
 router.patch("/start-all", async (req, res) => {
 	const { campaignId } = req.query;
-	if (campaignId === undefined) {
+	if (!campaignId) {
 		return res
 			.status(400)
 			.json({ success: false, message: "Missing campaignId" });
 	}
 
 	try {
-		const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
-		if (!campaignDoc.exists || campaignDoc.data().userId !== req.user.uid) {
+		const campaign = await Campaign.findById(campaignId);
+		if (!campaign || campaign.userId !== req.user.uid) {
 			return res.status(404).json({
 				success: false,
 				message: "Campaign not found or access denied",
 			});
 		}
 
-		const accountsSnap = await db
-			.collection("accounts")
-			.where("currentCampaignId", "==", campaignId)
-			.get();
+		const accounts = await Account.find({ currentCampaignId: campaignId });
 
-		const batch = db.batch();
-		for (const doc of accountsSnap.docs) {
-			batch.update(doc.ref, {
-				status: "active",
-				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-			});
-		}
+		// Update all accounts to active
+		await Promise.all(
+			accounts.map((account) => {
+				account.status = "active";
+				account.lastUpdated = {
+					_seconds: Math.floor(Date.now() / 1000),
+					_nanoseconds: 0,
+				};
+				return account.save();
+			})
+		);
 
-		batch.update(db.collection("campaigns").doc(campaignId), {
-			status: "active",
-			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-		});
+		// Update campaign status
+		campaign.status = "active";
+		campaign.lastUpdated = {
+			_seconds: Math.floor(Date.now() / 1000),
+			_nanoseconds: 0,
+		};
+		await campaign.save();
 
-		await batch.commit();
-
-		await Promise.allSettled(
-			accountsSnap.docs.map((doc) =>
-				LeadService.assignLeadsToAccount(campaignId, doc.data().widgetId, 24)
+		// Assign leads for each account (concurrent)
+		await Promise.all(
+			accounts.map((account) =>
+				LeadService.assignLeadsToAccount(campaignId, account.widgetId, 24)
 			)
 		);
 
 		res.json({
 			success: true,
 			message: "Campaign and all accounts started",
-			accounts: accountsSnap.size,
+			accounts: accounts.length,
 		});
-	} catch (e) {
-		console.error("start-all error:", e);
+	} catch (error) {
+		console.error("start-all error", error);
 		res.status(500).json({ success: false, message: "Bulk start failed" });
 	}
 });
 
-// PATCH /api/v1/campaign/pause - Pause campaign
+// PATCH /api/v1/campaign/pause
 router.patch("/pause", async (req, res) => {
 	try {
 		const { campaignID, accountId } = req.query;
-
 		if (!campaignID || !accountId) {
-			return res.status(400).json({
-				success: false,
-				message: "Missing required parameters",
-			});
+			return res
+				.status(400)
+				.json({ success: false, message: "Missing required parameters" });
 		}
 
-		// Find account by widgetId field, not document ID
-		const accountSnapshot = await db
-			.collection("accounts")
-			.where("widgetId", "==", accountId)
-			.limit(1)
-			.get();
-
-		if (accountSnapshot.empty) {
-			return res.status(404).json({
-				success: false,
-				message: "Account not found",
-			});
+		const account = await Account.findOne({ widgetId: accountId });
+		if (!account) {
+			return res
+				.status(404)
+				.json({ success: false, message: "Account not found" });
 		}
 
-		const accountDoc = accountSnapshot.docs[0];
+		account.status = "paused";
+		account.lastUpdated = {
+			_seconds: Math.floor(Date.now() / 1000),
+			_nanoseconds: 0,
+		};
+		await account.save();
 
-		// Update using the actual document ID
-		await accountDoc.ref.update({
-			status: "paused",
-			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-		});
+		const campaign = await Campaign.findById(campaignID);
+		if (campaign) {
+			campaign.status = "paused";
+			campaign.lastUpdated = {
+				_seconds: Math.floor(Date.now() / 1000),
+				_nanoseconds: 0,
+			};
+			await campaign.save();
+		}
 
-		await db.collection("campaigns").doc(campaignID).update({
-			status: "paused",
-			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-		});
-
-		// Pass the actual document ID to leadService
 		await LeadService.unAssignLeads(campaignID, accountId, 24);
 
 		res.json({ success: true, message: "Campaign paused successfully" });
 	} catch (error) {
-		console.error("Error pausing campaign:", error);
+		console.error("pause error", error);
 		res
 			.status(500)
 			.json({ success: false, message: "Failed to pause campaign" });
@@ -533,54 +457,57 @@ router.patch("/pause", async (req, res) => {
 // PATCH /api/v1/campaign/pause-all
 router.patch("/pause-all", async (req, res) => {
 	const { campaignId } = req.query;
-	if (campaignId === undefined) {
+	if (!campaignId) {
 		return res
 			.status(400)
 			.json({ success: false, message: "Missing campaignId" });
 	}
 
 	try {
-		const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
-		if (!campaignDoc.exists || campaignDoc.data().userId !== req.user.uid) {
+		const campaign = await Campaign.findById(campaignId);
+		if (!campaign || campaign.userId !== req.user.uid) {
 			return res.status(404).json({
 				success: false,
 				message: "Campaign not found or access denied",
 			});
 		}
 
-		const accountsSnap = await db
-			.collection("accounts")
-			.where("currentCampaignId", "==", campaignId)
-			.get();
+		const accounts = await Account.find({ currentCampaignId: campaignId });
 
-		const batch = db.batch();
-		for (const doc of accountsSnap.docs) {
-			batch.update(doc.ref, {
-				status: "paused",
-				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-			});
-		}
+		// Update all accounts to paused
+		await Promise.all(
+			accounts.map((account) => {
+				account.status = "paused";
+				account.lastUpdated = {
+					_seconds: Math.floor(Date.now() / 1000),
+					_nanoseconds: 0,
+				};
+				return account.save();
+			})
+		);
 
-		batch.update(db.collection("campaigns").doc(campaignId), {
-			status: "paused",
-			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-		});
+		// Update campaign status
+		campaign.status = "paused";
+		campaign.lastUpdated = {
+			_seconds: Math.floor(Date.now() / 1000),
+			_nanoseconds: 0,
+		};
+		await campaign.save();
 
-		await batch.commit();
-
-		await Promise.allSettled(
-			accountsSnap.docs.map((doc) =>
-				LeadService.unAssignLeads(campaignId, doc.data().widgetId, 24)
+		// Unassign leads for each account
+		await Promise.all(
+			accounts.map((account) =>
+				LeadService.unAssignLeads(campaignId, account.widgetId, 24)
 			)
 		);
 
 		res.json({
 			success: true,
 			message: "Campaign and all accounts paused",
-			accounts: accountsSnap.size,
+			accounts: accounts.length,
 		});
-	} catch (e) {
-		console.error("pause-all error:", e);
+	} catch (error) {
+		console.error("pause-all error", error);
 		res.status(500).json({ success: false, message: "Bulk pause failed" });
 	}
 });
@@ -589,51 +516,36 @@ router.patch("/pause-all", async (req, res) => {
 router.get("/account-status", async (req, res) => {
 	try {
 		const { widgetID } = req.query;
-
 		if (!widgetID) {
 			return res
 				.status(400)
 				.json({ success: false, message: "Missing widgetID" });
 		}
 
-		// FIXED: Query by widgetId field, not document ID
-		const accountSnapshot = await db
-			.collection("accounts")
-			.where("widgetId", "==", widgetID)
-			.limit(1)
-			.get();
-
-		if (accountSnapshot.empty) {
+		const account = await Account.findOne({ widgetId: widgetID }).lean();
+		if (!account) {
 			return res
 				.status(404)
 				.json({ success: false, message: "Account not found" });
 		}
 
-		const accountDoc = accountSnapshot.docs[0];
-		const accountData = accountDoc.data();
-		const accountId = accountDoc.id; // This is the actual document ID
-
-		const leadsSnapshot = await db
-			.collection("leads")
-			.where("assignedAccount", "==", accountId) // Use document ID here
-			.where("status", "==", "ready")
-			.get();
-
-		accountData.pendingLeadsCount = leadsSnapshot.size;
-
-		res.json({
-			success: true,
-			account: {
-				accountId: accountId, // Return document ID
-				widgetId: accountData.widgetId, // Return widgetId as field
-				displayName: accountData.displayName,
-				status: accountData.status,
-				createdAt: accountData.createdAt,
-				campaignId: accountData.currentCampaignId,
-				lastUpdated: accountData.lastUpdated,
-				pendingLeadsCount: accountData.pendingLeadsCount,
-			},
+		const pendingLeadsCount = await Lead.countDocuments({
+			assignedAccount: account._id.toString(),
+			status: "ready",
 		});
+
+		const accountData = {
+			accountId: account._id.toString(),
+			widgetId: account.widgetId,
+			displayName: account.displayName,
+			status: account.status,
+			createdAt: account.createdAt,
+			campaignId: account.currentCampaignId,
+			lastUpdated: account.lastUpdated,
+			pendingLeadsCount,
+		};
+
+		res.json({ success: true, account: accountData });
 	} catch (error) {
 		console.error("Error checking account status:", error);
 		res
@@ -646,41 +558,37 @@ router.get("/account-status", async (req, res) => {
 router.get("/campaign-status", async (req, res) => {
 	try {
 		const { campaignID } = req.query;
-
 		if (!campaignID) {
 			return res
 				.status(400)
 				.json({ success: false, message: "Missing campaignID" });
 		}
 
-		const campaignDoc = await db.collection("campaigns").doc(campaignID).get();
-
-		if (!campaignDoc.exists) {
+		const campaign = await Campaign.findById(campaignID).lean();
+		if (!campaign) {
 			return res
 				.status(404)
 				.json({ success: false, message: "Campaign not found" });
 		}
 
-		const campaignData = campaignDoc.data();
-
 		const withinWorkingHours = WorkingHoursService.isWithinWorkingHours(
-			campaignData.workingHours || { start: 0, end: 24 }
+			campaign.workingHours || { start: 0, end: 24 }
 		);
 
 		res.json({
 			success: true,
 			campaign: {
-				platform: campaignData.platform,
-				status: campaignData.status,
-				followUser: campaignData.followUser,
-				name: campaignData.name,
-				description: campaignData.description,
-				variants: campaignData.variants,
+				platform: campaign.platform,
+				status: campaign.status,
+				followUser: campaign.followUser,
+				name: campaign.name,
+				description: campaign.description,
+				variants: campaign.variants,
 				id: campaignID,
 				withinWorkingHours,
-				sendVoiceNote: campaignData.sendVoiceNote,
-				autoLikeStory: campaignData.autoLikeStory,
-				autoLikeNewestPost: campaignData.autoLikeNewestPost,
+				sendVoiceNote: campaign.sendVoiceNote,
+				autoLikeStory: campaign.autoLikeStory,
+				autoLikeNewestPost: campaign.autoLikeNewestPost,
 			},
 		});
 	} catch (error) {
@@ -695,26 +603,21 @@ router.get("/campaign-status", async (req, res) => {
 router.get("/fetch-leads", async (req, res) => {
 	try {
 		const { campaignID, accountId } = req.query;
-
 		if (!campaignID || !accountId) {
-			return res.status(400).json({
-				success: false,
-				message: "Missing required parameters",
-			});
+			return res
+				.status(400)
+				.json({ success: false, message: "Missing required parameters" });
 		}
 
-		const campaignDoc = await db.collection("campaigns").doc(campaignID).get();
-
-		if (!campaignDoc.exists) {
+		const campaign = await Campaign.findById(campaignID).lean();
+		if (!campaign) {
 			return res
 				.status(404)
 				.json({ success: false, message: "Campaign not found" });
 		}
 
-		const campaignData = campaignDoc.data();
-
 		const withinWorkingHours = WorkingHoursService.isWithinWorkingHours(
-			campaignData.workingHours || { start: 0, end: 24 }
+			campaign.workingHours || { start: 0, end: 24 }
 		);
 
 		if (!withinWorkingHours) {
@@ -728,8 +631,8 @@ router.get("/fetch-leads", async (req, res) => {
 
 		const rateInfo = await RateService.getRateLimitInfo(
 			accountId,
-			campaignData.workingHours || { start: 0, end: 24 },
-			campaignData.messageLimits || { min: 35, max: 41 }
+			campaign.workingHours || { start: 0, end: 24 },
+			campaign.messageLimits || { min: 35, max: 41 }
 		);
 
 		if (rateInfo.remainingMessages <= 0) {
@@ -753,7 +656,6 @@ router.get("/fetch-leads", async (req, res) => {
 				accountId,
 				24
 			);
-
 			if (leadsCount === 0) {
 				return res.status(400).json({
 					success: true,
@@ -789,7 +691,6 @@ router.get("/fetch-leads", async (req, res) => {
 router.get("/fetch-lead", async (req, res) => {
 	try {
 		const { campaignID, leadID } = req.query;
-
 		if (!campaignID || !leadID) {
 			return res.status(400).json({
 				success: false,
@@ -797,22 +698,20 @@ router.get("/fetch-lead", async (req, res) => {
 			});
 		}
 
-		const leadDoc = await db.collection("leads").doc(leadID).get();
+		const lead = await Lead.findById(leadID).lean();
 
-		if (!leadDoc.exists) {
+		if (!lead) {
 			return res
 				.status(404)
 				.json({ success: false, message: "Lead not found" });
 		}
 
-		const leadData = leadDoc.data();
-
 		res.json({
 			success: true,
 			lead: {
 				id: leadID,
-				...leadData,
-				baseDateTimestamp: leadData.baseDate,
+				...lead,
+				baseDateTimestamp: lead.baseDate,
 			},
 		});
 	} catch (error) {
@@ -820,8 +719,7 @@ router.get("/fetch-lead", async (req, res) => {
 		res.status(500).json({ success: false, message: "Failed to fetch lead" });
 	}
 });
-
-// PUT /api/v1/campaign/set-lead-status - Update lead status
+// PUT /campaign/set-lead-status
 router.put("/set-lead-status", async (req, res) => {
 	try {
 		const { campaignID, leadID } = req.query;
@@ -833,21 +731,22 @@ router.put("/set-lead-status", async (req, res) => {
 			});
 		}
 
-		await db.collection("leads").doc(leadID).update({
+		await Lead.findByIdAndUpdate(leadID, {
 			status: "sending",
-			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+			updatedAt: { _seconds: Math.floor(Date.now() / 1000), _nanoseconds: 0 },
 		});
 
-		res.json({ success: true });
+		return res.json({ success: true });
 	} catch (error) {
 		console.error("Error updating lead status:", error);
-		res
-			.status(500)
-			.json({ success: false, message: "Failed to update lead status" });
+		return res.status(500).json({
+			success: false,
+			message: "Failed to update lead status",
+		});
 	}
 });
 
-// POST /api/v1/campaign/check-response - Check if user responded
+// POST /campaign/check-response
 router.post("/check-response", async (req, res) => {
 	try {
 		const { campaignID, username } = req.body;
@@ -859,31 +758,29 @@ router.post("/check-response", async (req, res) => {
 			});
 		}
 
-		const analyticsSnapshot = await db
-			.collection("analytics")
-			.where("campaignID", "==", campaignID)
-			.where("username", "==", username)
-			.orderBy("timestamp", "desc")
-			.limit(1)
-			.get();
+		const latestAnalytics = await Analytics.findOne({
+			campaignID,
+			username,
+		}).sort({ "timestamp._seconds": -1, "timestamp._nanoseconds": -1 });
 
 		let status = "noResponse";
-		if (!analyticsSnapshot.empty) {
-			const latestEvent = analyticsSnapshot.docs[0].data();
+		if (latestAnalytics) {
 			status = "found";
 		}
 
-		res.json({ success: true, status });
+		return res.json({ success: true, status });
 	} catch (error) {
 		console.error("Error checking response:", error);
-		res
-			.status(500)
-			.json({ success: false, message: "Failed to check response" });
+		return res.status(500).json({
+			success: false,
+			message: "Failed to check response",
+		});
 	}
 });
 
-// POST /api/v1/campaign/analytics - Record analytics
+// POST /campaign/analytics
 router.post("/analytics", async (req, res) => {
+	console.log("req.body", req.body);
 	try {
 		const {
 			campaignID,
@@ -895,8 +792,6 @@ router.post("/analytics", async (req, res) => {
 			platform,
 		} = req.body;
 
-		console.log("Received analytics data:", req.body);
-
 		if (!campaignID || !accountID) {
 			return res.status(400).json({
 				success: false,
@@ -904,7 +799,9 @@ router.post("/analytics", async (req, res) => {
 			});
 		}
 
-		const analyticsData = {
+		const nowSec = Math.floor(Date.now() / 1000);
+
+		const analyticsData = new Analytics({
 			campaignID,
 			accountID,
 			leadID: leadID || "",
@@ -912,137 +809,118 @@ router.post("/analytics", async (req, res) => {
 			message: message || "",
 			status: status || "unknown",
 			platform: platform || "instagram",
-			timestamp: admin.firestore.FieldValue.serverTimestamp(),
-			createdAt: Date.now(),
-		};
+			timestamp: { _seconds: nowSec, _nanoseconds: 0 },
+			createdAt: { _seconds: nowSec, _nanoseconds: 0 },
+		});
 
-		console.log("Adding analytics");
-		await db.collection("analytics").add(analyticsData);
+		await analyticsData.save();
 
-		await db
-			.collection("leads")
-			.doc(leadID)
-			.update({
+		// Update lead status accordingly
+		if (leadID) {
+			await Lead.findByIdAndUpdate(leadID, {
 				status: status,
-				sent: status === "initialdmsent" || status === "followup",
-				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+				sent: ["initialdmsent", "followup"].includes(status),
+				updatedAt: { _seconds: nowSec, _nanoseconds: 0 },
 			});
+		}
 
-		if (status === "initialdmsent" || status === "followup") {
+		if (["initialdmsent", "followup"].includes(status)) {
 			await RateService.recordMessageSent(accountID, campaignID);
 		}
 
-		res.json({ success: true });
+		return res.json({ success: true });
 	} catch (error) {
 		console.error("Error recording analytics:", error);
-		res
-			.status(500)
-			.json({ success: false, message: "Failed to record analytics" });
+		return res.status(500).json({
+			success: false,
+			message: "Failed to record analytics",
+		});
 	}
 });
 
+// GET /campaign/analytics
 router.get("/analytics", async (req, res) => {
 	try {
 		const { campaignID, accountID, timeframe = "today" } = req.query;
 
-		// Calculate date ranges
 		const now = new Date();
-		let startDate, endDate;
+
+		let start, end;
 
 		switch (timeframe) {
 			case "today":
-				startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-				endDate = new Date(
-					now.getFullYear(),
-					now.getMonth(),
-					now.getDate() + 1
-				);
+				start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+				end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 				break;
 			case "week":
-				const weekStart = new Date(now);
-				weekStart.setDate(now.getDate() - now.getDay());
-				weekStart.setHours(0, 0, 0, 0);
-				startDate = weekStart;
-				endDate = new Date();
+				start = new Date(now);
+				start.setDate(now.getDate() - now.getDay());
+				start.setHours(0, 0, 0, 0);
+				end = new Date(now);
 				break;
 			case "month":
-				startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-				endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+				start = new Date(now.getFullYear(), now.getMonth(), 1);
+				end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 				break;
 			default:
-				startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-				endDate = new Date(
-					now.getFullYear(),
-					now.getMonth(),
-					now.getDate() + 1
-				);
+				start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+				end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+				break;
 		}
 
-		const startTimestamp = startDate.getTime();
-		const endTimestamp = endDate.getTime();
+		const startTimestamp = {
+			_seconds: Math.floor(start.getTime() / 1000),
+			_nanoseconds: 0,
+		};
+		const endTimestamp = {
+			_seconds: Math.floor(end.getTime() / 1000),
+			_nanoseconds: 0,
+		};
 
-		// Build query conditions
-		let analyticsQuery = db
-			.collection("analytics")
-			.where("createdAt", ">=", startTimestamp)
-			.where("createdAt", "<", endTimestamp);
+		// Build queries
+		let analyticsQuery = {
+			"createdAt._seconds": {
+				$gte: startTimestamp._seconds,
+				$lt: endTimestamp._seconds,
+			},
+		};
 
-		let leadsQuery = db.collection("leads");
+		if (campaignID) analyticsQuery.campaignID = campaignID;
+		if (accountID) analyticsQuery.accountID = accountID;
 
-		if (campaignID) {
-			analyticsQuery = analyticsQuery.where("campaignID", "==", campaignID);
-			leadsQuery = leadsQuery.where("campaignID", "==", campaignID);
-		}
+		const analyticsRecords = await Analytics.find(analyticsQuery);
 
-		if (accountID) {
-			analyticsQuery = analyticsQuery.where("accountID", "==", accountID);
-			leadsQuery = leadsQuery.where("accountID", "==", accountID);
-		}
-
-		// Get analytics data
-		const analyticsSnapshot = await analyticsQuery.get();
-		const analyticsData = analyticsSnapshot.docs.map((doc) => doc.data());
-
-		// Calculate total messages sent
-		const totalMessagesSent = analyticsData.filter(
-			(record) =>
-				record.status === "initialdmsent" || record.status === "followup"
+		let totalMessagesSent = analyticsRecords.filter((r) =>
+			["initialdmsent", "followup"].includes(r.status)
 		).length;
 
-		// Get leads data for conversion rate calculation
-		const leadsSnapshot = await leadsQuery.get();
-		const leadsData = leadsSnapshot.docs.map((doc) => doc.data());
+		// Build leads query for conversion calculation
+		let leadsQuery = {};
+		if (campaignID) leadsQuery.campaignId = campaignID;
+		if (accountID) leadsQuery.assignedAccount = accountID;
 
-		// Calculate lead conversion rate
-		const totalLeads = leadsData.length;
-		const convertedLeads = leadsData.filter(
-			(lead) =>
-				lead.status === "initialdmsent" ||
-				lead.status === "followup" ||
-				lead.sent === true
+		const leadsRecords = await Lead.find(leadsQuery);
+
+		const totalLeads = leadsRecords.length;
+		const convertedLeads = leadsRecords.filter(
+			(l) => ["initialdmsent", "followup"].includes(l.status) || l.sent
 		).length;
 
 		const conversionRate =
 			totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(2) : 0;
 
-		// Get messages by status for detailed breakdown
 		const messagesByStatus = {
-			initialdmsent: analyticsData.filter(
-				(record) => record.status === "initialdmsent"
+			initialdmsent: analyticsRecords.filter(
+				(r) => r.status === "initialdmsent"
 			).length,
-			followup: analyticsData.filter((record) => record.status === "followup")
-				.length,
-			unknown: analyticsData.filter((record) => record.status === "unknown")
-				.length,
+			followup: analyticsRecords.filter((r) => r.status === "followup").length,
+			unknown: analyticsRecords.filter((r) => r.status === "unknown").length,
 		};
 
-		// Get messages by platform
 		const messagesByPlatform = {
-			instagram: analyticsData.filter(
-				(record) => record.platform === "instagram"
-			).length,
-			twitter: analyticsData.filter((record) => record.platform === "twitter")
+			instagram: analyticsRecords.filter((r) => r.platform === "instagram")
 				.length,
+			twitter: analyticsRecords.filter((r) => r.platform === "twitter").length,
 		};
 
 		const response = {
@@ -1050,8 +928,8 @@ router.get("/analytics", async (req, res) => {
 			data: {
 				timeframe,
 				period: {
-					start: startDate.toISOString(),
-					end: endDate.toISOString(),
+					start: start.toISOString(),
+					end: end.toISOString(),
 				},
 				totalMessagesSent,
 				leadConversionRate: parseFloat(conversionRate),
@@ -1064,42 +942,42 @@ router.get("/analytics", async (req, res) => {
 			},
 		};
 
-		res.json(response);
+		return res.json(response);
 	} catch (error) {
 		console.error("Error fetching analytics:", error);
-		res.status(500).json({
+		return res.status(500).json({
 			success: false,
 			message: "Failed to fetch analytics data",
 		});
 	}
 });
 
-// routes/analytics.js  (append below your /analytics POST + GET)
+// GET /api/v1/campaign/analytics/trend - Get analytics trend data
 router.get("/analytics/trend", async (req, res) => {
 	try {
 		const { campaignID, accountID, timeframe = "week" } = req.query;
 
-		// ----- date window -----
 		const now = new Date();
-		const days = timeframe === "today" ? 1 : timeframe === "week" ? 7 : 31; // month = max 31
+		const days = timeframe === "today" ? 1 : timeframe === "week" ? 7 : 31;
 		const start = new Date(now);
 		start.setDate(now.getDate() - (days - 1));
 		start.setHours(0, 0, 0, 0);
 
-		// ----- query -----
-		let q = db
-			.collection("analytics")
-			.where("createdAt", ">=", start.getTime())
-			.where("createdAt", "<", now.getTime())
-			.where("status", "in", ["initialdmsent", "followup"]); // only real DMs
+		// Build query
+		const query = {
+			"createdAt._seconds": {
+				$gte: Math.floor(start.getTime() / 1000),
+				$lt: Math.floor(now.getTime() / 1000),
+			},
+			status: { $in: ["initialdmsent", "followup"] },
+		};
+		if (campaignID) query.campaignID = campaignID;
+		if (accountID) query.accountID = accountID;
 
-		if (campaignID) q = q.where("campaignID", "==", campaignID);
-		if (accountID) q = q.where("accountID", "==", accountID);
+		const snap = await Analytics.find(query);
 
-		const snap = await q.get();
-
-		// ----- group by day -----
-		const counts = Array(days).fill(0); // index 0 = oldest day
+		// Group counts by day
+		const counts = Array(days).fill(0);
 		const labels = Array(days)
 			.fill("")
 			.map((_, i) => {
@@ -1112,14 +990,14 @@ router.get("/analytics/trend", async (req, res) => {
 			});
 
 		snap.forEach((doc) => {
-			const d = new Date(doc.data().createdAt);
-			const idx = Math.floor((d - start) / 86400000); // ms per day
-			if (idx >= 0 && idx < days) counts[idx] += 1;
+			const d = new Date(doc.createdAt._seconds * 1000);
+			const idx = Math.floor((d - start) / 86400000);
+			if (idx >= 0 && idx < days) counts[idx]++;
 		});
 
-		return res.json({ success: true, data: { labels, counts, timeframe } });
+		res.json({ success: true, data: { labels, counts, timeframe } });
 	} catch (err) {
-		console.error("trend-analytics", err);
+		console.error("trend-analytics error:", err);
 		res.status(500).json({ success: false, message: "Trend fetch failed" });
 	}
 });
@@ -1128,67 +1006,50 @@ router.get("/analytics/trend", async (req, res) => {
 router.get("/:campaignId", async (req, res) => {
 	try {
 		const { campaignId } = req.params;
-
 		if (!campaignId) {
 			return res
-				.status(HTTP_STATUS.BAD_REQUEST)
+				.status(400)
 				.json(createResponse(false, null, "Campaign ID is required"));
 		}
 
-		const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
-
-		if (!campaignDoc.exists) {
+		const campaign = await Campaign.findById(campaignId).lean();
+		if (!campaign) {
 			return res
-				.status(HTTP_STATUS.NOT_FOUND)
+				.status(404)
 				.json(createResponse(false, null, "Campaign not found"));
 		}
 
-		const campaignData = campaignDoc.data();
-
-		if (campaignData.userId !== req.user.uid) {
-			return res
-				.status(HTTP_STATUS.FORBIDDEN)
-				.json(createResponse(false, null, "Access denied"));
+		if (campaign.userId !== req.user.uid) {
+			return res.status(403).json(createResponse(false, null, "Access denied"));
 		}
 
-		const leadsSnapshot = await db
-			.collection("leads")
-			.where("campaignId", "==", campaignId)
-			.get();
-
-		const sentLeadsSnapshot = await db
-			.collection("leads")
-			.where("campaignId", "==", campaignId)
-			.where("sent", "==", true)
-			.get();
-
-		const analyticsSnapshot = await db
-			.collection("analytics")
-			.where("campaignID", "==", campaignId)
-			.get();
+		const leadsCount = await Lead.countDocuments({ campaignId });
+		const sentLeadsCount = await Lead.countDocuments({
+			campaignId,
+			sent: true,
+		});
+		const analyticsCount = await Analytics.countDocuments({
+			campaignID: campaignId,
+		});
 
 		const stats = {
-			totalLeads: leadsSnapshot.size,
-			sentLeads: sentLeadsSnapshot.size,
-			pendingLeads: leadsSnapshot.size - sentLeadsSnapshot.size,
-			totalAnalytics: analyticsSnapshot.size,
+			totalLeads: leadsCount,
+			sentLeads: sentLeadsCount,
+			pendingLeads: leadsCount - sentLeadsCount,
+			totalAnalytics: analyticsCount,
 		};
 
 		res.json(
 			createResponse(
 				true,
-				{
-					id: campaignId,
-					...campaignData,
-					stats,
-				},
+				{ id: campaignId, ...campaign, stats },
 				"Campaign fetched successfully"
 			)
 		);
 	} catch (error) {
 		console.error("Error fetching campaign:", error);
 		res
-			.status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+			.status(500)
 			.json(createResponse(false, null, "Failed to fetch campaign"));
 	}
 });
@@ -1214,75 +1075,68 @@ router.put("/:campaignId", async (req, res) => {
 
 		if (!campaignId) {
 			return res
-				.status(HTTP_STATUS.BAD_REQUEST)
+				.status(400)
 				.json(createResponse(false, null, "Campaign ID is required"));
 		}
 
-		const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
-
-		if (!campaignDoc.exists) {
+		const campaign = await Campaign.findById(campaignId);
+		if (!campaign) {
 			return res
-				.status(HTTP_STATUS.NOT_FOUND)
+				.status(404)
 				.json(createResponse(false, null, "Campaign not found"));
 		}
 
-		const existingCampaign = campaignDoc.data();
-
-		if (existingCampaign.userId !== req.user.uid) {
-			return res
-				.status(HTTP_STATUS.FORBIDDEN)
-				.json(createResponse(false, null, "Access denied"));
+		if (campaign.userId !== req.user.uid) {
+			return res.status(403).json(createResponse(false, null, "Access denied"));
 		}
 
-		if (existingCampaign.status === "active") {
+		if (campaign.status === "active") {
+			// Limited updates allowed when active
 			const allowedUpdates = {
-				name: name?.trim() || existingCampaign.name,
-				description: description?.trim() || existingCampaign.description,
-				tag: tag?.trim() || existingCampaign.tag,
-				workingHours: workingHours || existingCampaign.workingHours,
-				messageLimits: messageLimits || existingCampaign.messageLimits,
-				context: context?.trim() || "",
-				followUser:
-					followUser !== undefined ? followUser : existingCampaign.followUser,
+				name: (name && name.trim()) || campaign.name,
+				description:
+					(description && description.trim()) || campaign.description,
+				tag: (tag && tag.trim()) || campaign.tag,
+				workingHours: workingHours || campaign.workingHours,
+				messageLimits: messageLimits || campaign.messageLimits,
+				context: (context && context.trim()) || "",
+				followUser: followUser !== undefined ? followUser : campaign.followUser,
 				autoLikeStory:
-					autoLikeStory !== undefined
-						? autoLikeStory
-						: existingCampaign.autoLikeStory,
+					autoLikeStory !== undefined ? autoLikeStory : campaign.autoLikeStory,
 				autoLikeNewestPost:
 					autoLikeNewestPost !== undefined
 						? autoLikeNewestPost
-						: existingCampaign.autoLikeNewestPost,
+						: campaign.autoLikeNewestPost,
 				updatedAt: Date.now(),
-				lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+				lastUpdated: {
+					_seconds: Math.floor(Date.now() / 1000),
+					_nanoseconds: 0,
+				},
 			};
 
-			await db.collection("campaigns").doc(campaignId).update(allowedUpdates);
+			await Campaign.findByIdAndUpdate(campaignId, allowedUpdates);
 
 			return res.json(
 				createResponse(
 					true,
-					{
-						id: campaignId,
-						...existingCampaign,
-						...allowedUpdates,
-					},
+					{ id: campaignId, ...campaign.toObject(), ...allowedUpdates },
 					"Campaign updated successfully (limited updates while active)"
 				)
 			);
 		}
 
+		// Full update
 		const updateData = {
 			updatedAt: Date.now(),
-			lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+			lastUpdated: { _seconds: Math.floor(Date.now() / 1000), _nanoseconds: 0 },
 		};
 
 		if (name) updateData.name = name.trim();
 		if (context) updateData.context = context.trim();
 		if (description) updateData.description = description.trim();
 		if (tag) updateData.tag = tag.trim();
-		if (platform && ["instagram", "twitter"].includes(platform)) {
+		if (platform && ["instagram", "twitter"].includes(platform))
 			updateData.platform = platform;
-		}
 		if (workingHours) updateData.workingHours = workingHours;
 		if (messageLimits) updateData.messageLimits = messageLimits;
 		if (followUser !== undefined) updateData.followUser = followUser;
@@ -1292,11 +1146,11 @@ router.put("/:campaignId", async (req, res) => {
 
 		if (variants && Array.isArray(variants)) {
 			const invalidVariants = variants.filter(
-				(variant) => !variant.message || variant.message.trim() === ""
+				(v) => !v.message || v.message.trim() === ""
 			);
 			if (invalidVariants.length > 0) {
 				return res
-					.status(HTTP_STATUS.BAD_REQUEST)
+					.status(400)
 					.json(
 						createResponse(
 							false,
@@ -1305,70 +1159,48 @@ router.put("/:campaignId", async (req, res) => {
 						)
 					);
 			}
-
-			updateData.variants = variants.map((variant) => ({
-				message: variant.message.trim(),
+			updateData.variants = variants.map((v) => ({
+				message: v.message.trim(),
 			}));
 		}
 
 		if (newLeads && Array.isArray(newLeads) && newLeads.length > 0) {
 			const processedNewLeads = [
 				...new Set(
-					newLeads.map((lead) =>
-						typeof lead === "string" ? lead.replace("@", "").trim() : lead
+					newLeads.map((l) =>
+						typeof l === "string" ? l.replace("@", "").trim() : l
 					)
 				),
-			].filter((lead) => lead && lead.length > 0);
-
+			].filter(Boolean);
 			if (processedNewLeads.length > 0) {
-				const existingLeadsSnapshot = await db
-					.collection("leads")
-					.where("campaignId", "==", campaignId)
-					.get();
-
-				const existingUsernames = new Set(
-					existingLeadsSnapshot.docs.map((doc) => doc.data().username)
+				const existingLeads = await Lead.find({ campaignId }).select(
+					"username"
 				);
-
+				const existingUsernames = new Set(existingLeads.map((l) => l.username));
 				const trulyNewLeads = processedNewLeads.filter(
-					(username) => !existingUsernames.has(username)
+					(u) => !existingUsernames.has(u)
 				);
-
 				if (trulyNewLeads.length > 0) {
 					await LeadService.createLeadsFromCampaign(campaignId, trulyNewLeads);
-
-					const newTotalLeads =
-						existingCampaign.totalLeads + trulyNewLeads.length;
-					updateData.totalLeads = newTotalLeads;
-
-					const newLeadsString = trulyNewLeads.join("\n") + "\n";
-					updateData.allLeads = existingCampaign.allLeads + newLeadsString;
+					updateData.totalLeads =
+						(campaign.totalLeads || 0) + trulyNewLeads.length;
+					updateData.allLeads =
+						(campaign.allLeads || "") + trulyNewLeads.join("\n") + "\n";
 				}
 			}
 		}
 
-		await db.collection("campaigns").doc(campaignId).update(updateData);
+		await Campaign.findByIdAndUpdate(campaignId, updateData);
 
-		const updatedCampaignDoc = await db
-			.collection("campaigns")
-			.doc(campaignId)
-			.get();
-		const updatedCampaignData = updatedCampaignDoc.data();
+		const updatedCampaign = await Campaign.findById(campaignId);
 
-		res.json(
-			createResponse(
-				true,
-				{
-					id: campaignId,
-					...updatedCampaignData,
-				},
-				"Campaign updated successfully"
-			)
+		return res.json(
+			createResponse(true, updatedCampaign, "Campaign updated successfully")
 		);
 	} catch (error) {
 		console.error("Error updating campaign:", error);
-		res
-			.status(HTTP_STATUS.INTERNAL_SERVER_ERROR)
+		return res
+			.status(500)
 			.json(createResponse(false, null, "Failed to update campaign"));
 	}
 });

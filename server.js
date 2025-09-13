@@ -16,12 +16,16 @@ const userRoutes = require("./routes/user");
 const crmRoutes = require("./routes/crm");
 const dashboardRoutes = require("./routes/dashboard");
 const billingRoutes = require("./routes/billing");
+const User = require("./models/User");
 const { authenticateToken } = require("./middleware/auth");
 const { createProxyMiddleware } = require("http-proxy-middleware");
+const connectDB = require("./config/dbConnect");
 
-const { db } = require("./config/firebase");
+const { connect } = require("http2");
 
 const app = express();
+
+connectDB();
 
 // CORS setup
 setupCors(app);
@@ -73,39 +77,27 @@ app.get("/health", (req, res) => {
 // In your auth routes - with auth middleware applied
 app.get("/api/v1/auth/me", authenticateToken, async (req, res) => {
 	try {
-		const userDoc = await db.collection("users").doc(req.user.uid).get();
+		const user = await User.findOne({ uid: req.user.uid }).lean();
 
-		if (!userDoc.exists) {
+		if (!user) {
 			return res
 				.status(401)
 				.json({ success: false, message: "User not found" });
 		}
 
-		const userData = userDoc.data();
-		const { password: _, ...userResponse } = userData;
+		const { password, ...userData } = user;
 
 		res.json({
 			success: true,
 			data: {
-				uid: req.user.uid,
-				...userResponse,
+				uid: user.uid,
+				...userData,
 			},
 			message: "User verified successfully",
 		});
 	} catch (error) {
 		console.error("Error verifying user:", error);
 		res.status(401).json({ success: false, message: "Invalid token" });
-	}
-});
-
-app.get("/test-firebase", async (req, res) => {
-	try {
-		await db.collection("test").doc("hello").set({ hello: "world" });
-		console.log("✅ Firestore write successful.");
-		res.status(200).json({ success: true });
-	} catch (err) {
-		console.error("❌ Firebase connection failed:", err);
-		res.status(500).json({ success: false, error: err.message });
 	}
 });
 

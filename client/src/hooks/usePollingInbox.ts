@@ -35,7 +35,11 @@ export default function usePollingInbox(interval = 60_000) {
 
 	useEffect(() => {
 		if (!activeConv) return;
-
+		setConversations((prev) =>
+			prev.map((c) =>
+				c._id === activeConv._id ? { ...c, unread_count: 0 } : c
+			)
+		);
 		const load = () =>
 			chat
 				.messages(
@@ -94,7 +98,9 @@ export default function usePollingInbox(interval = 60_000) {
 					text
 				);
 
-				setMessages((prev) => [...prev, { ...optimisticMsg, pending: false }]);
+				setMessages((prev) =>
+					prev.map((m) => (m === optimisticMsg ? { ...m, pending: false } : m))
+				);
 				// const r: any = await chat.messages(
 				// 	activeConv.businessAccount.id,
 				// 	activeConv.clientAccount.id,

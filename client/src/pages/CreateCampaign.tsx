@@ -239,7 +239,7 @@ const CreateCampaign = () => {
 											id="start"
 											name="workingHours.start"
 											min={0}
-											max={23}
+											max={24}
 											value={formData.workingHours.start}
 											onChange={handleChange}
 											className="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer slider accent-blue-500"
