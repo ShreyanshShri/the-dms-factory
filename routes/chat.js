@@ -176,8 +176,18 @@ async function sendConversationWebhook(convoKey, business_account_id) {
 				formattedConversation += `${label}: ${msg.text}\n`;
 			});
 
+		console.log("Sending Conversation: ", {
+			conversation_key: convoKey,
+			business_account_id: conv.businessAccount.id,
+			client_account_id: conv.clientAccount.id,
+			formatted_conversation: formattedConversation.trim(),
+			timestamp: new Date().toISOString(),
+		});
+
 		await axios.post(
-			"https://n8n.aigrowtech.ru/webhook/6baef27-40e8-4f77-9b77-26039c0a8d68",
+			// "https://n8n.aigrowtech.ru/webhook/6baef27-40e8-4f77-9b77-26039c0a8d68",
+			// "https://n8n.aigrowtech.ru/webhook-test/6baef27b-40e8-4ad9-b22a-10b41a1fff87",
+			"https://n8n.aigrowtech.ru/webhook/6baef27b-40e8-4ad9-b22a-10b41a1fff87",
 			{
 				conversation_key: convoKey,
 				business_account_id: conv.businessAccount.id,
