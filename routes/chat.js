@@ -450,7 +450,7 @@ router.post("/send", async (req, res) => {
 	const { sender_id, recipient_id, message } = req.body;
 	if (!sender_id || !recipient_id || !message)
 		return res.status(400).json({ error: "Bad payload" });
-
+	console.log("Sending message:", { sender_id, recipient_id, message });
 	try {
 		const account = await InstagramAccount.findById(sender_id);
 		if (!account)
@@ -469,6 +469,7 @@ router.post("/send", async (req, res) => {
 
 		res.json({ success: true, message_id: resp.data.message_id });
 	} catch (error) {
+		console.error("Error sending message:", error);
 		res
 			.status(500)
 			.json({ error: error.response?.data?.error?.message || error.message });
