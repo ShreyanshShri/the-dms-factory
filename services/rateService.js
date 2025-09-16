@@ -1,6 +1,15 @@
 const moment = require("moment-timezone");
 const DailyLimit = require("../models/DailyLimit"); // Assume you have such a model
 const Campaign = require("../models/Campaign");
+const { toFirebaseTimestamp } = require("../utils/helpers");
+
+function toFirestoreTimestamp(dateInput) {
+	const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+	return {
+		_seconds: Math.floor(date.getTime() / 1000),
+		_nanoseconds: (date.getTime() % 1000) * 1000000,
+	};
+}
 
 class RateService {
 	static async getRateLimitInfo(
@@ -8,6 +17,7 @@ class RateService {
 		workingHours = { start: 0, end: 24 },
 		messageLimits = { min: 35, max: 41 }
 	) {
+		const now = toFirestoreTimestamp(new Date());
 		const today = moment().tz("America/Los_Angeles").format("YYYY-MM-DD");
 		let dailyLimit = await DailyLimit.findOne({ accountId, date: today });
 		if (!dailyLimit) {
@@ -18,7 +28,7 @@ class RateService {
 				messageLimitsMax: messageLimits.max,
 				minMsgLimit: messageLimits.min,
 				workingHours,
-				createdAt: Date.now(),
+				createdAt: now,
 			});
 		}
 		const messagesAllowedByNow = this.calculateAllowedByNow(
@@ -60,6 +70,7 @@ class RateService {
 
 	static async recordMessageSent(accountId, campaignId) {
 		const today = moment().tz("America/Los_Angeles").format("YYYY-MM-DD");
+		const now = toFirestoreTimestamp(new Date());
 		let dailyLimit = await DailyLimit.findOne({ accountId, date: today });
 		if (!dailyLimit) {
 			const campaign = await Campaign.findById(campaignId);
@@ -71,12 +82,12 @@ class RateService {
 				messageLimitsMax: campaign?.messageLimits?.max || 41,
 				minMsgLimit: campaign?.messageLimits?.min || 35,
 				workingHours: campaign?.workingHours || { start: 0, end: 24 },
-				createdAt: Date.now(),
-				lastMessageAt: Date.now(),
+				createdAt: now,
+				lastMessageAt: now,
 			});
 		} else {
 			dailyLimit.messagesSentToday += 1;
-			dailyLimit.lastMessageAt = Date.now();
+			dailyLimit.lastMessageAt = now;
 			await dailyLimit.save();
 		}
 	}

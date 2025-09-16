@@ -1089,7 +1089,7 @@ router.put("/:campaignId", async (req, res) => {
 		if (campaign.userId !== req.user.uid) {
 			return res.status(403).json(createResponse(false, null, "Access denied"));
 		}
-
+		const now = toFirestoreTimestamp(new Date());
 		if (campaign.status === "active") {
 			// Limited updates allowed when active
 			const allowedUpdates = {
@@ -1107,11 +1107,8 @@ router.put("/:campaignId", async (req, res) => {
 					autoLikeNewestPost !== undefined
 						? autoLikeNewestPost
 						: campaign.autoLikeNewestPost,
-				updatedAt: Date.now(),
-				lastUpdated: {
-					_seconds: Math.floor(Date.now() / 1000),
-					_nanoseconds: 0,
-				},
+				updatedAt: now,
+				lastUpdated: now,
 			};
 
 			await Campaign.findByIdAndUpdate(campaignId, allowedUpdates);
@@ -1127,8 +1124,8 @@ router.put("/:campaignId", async (req, res) => {
 
 		// Full update
 		const updateData = {
-			updatedAt: Date.now(),
-			lastUpdated: { _seconds: Math.floor(Date.now() / 1000), _nanoseconds: 0 },
+			updatedAt: now,
+			lastUpdated: now,
 		};
 
 		if (name) updateData.name = name.trim();
