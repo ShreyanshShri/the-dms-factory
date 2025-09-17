@@ -1,46 +1,46 @@
 import { useState, useEffect, useCallback } from "react";
 import { chat } from "../services/chat";
+import useInfiniteConversations from "./useInfiniteConversations";
 
-export default function usePollingInbox(interval = 60_000) {
-	/* ─── state ─── */
-	const [accounts, setAccounts] = useState<any[]>([]);
+export default function usePollingInbox(interval = 60000) {
+	// Use the new infinite conversations hook
+	const {
+		conversations: allConversations,
+		accounts,
+		loading: conversationsLoading,
+		loadingMore,
+		hasMore,
+		loadMore,
+		refresh: refreshConversations,
+	} = useInfiniteConversations();
+
+	// Existing state
 	const [activeAccount, setActiveAccount] = useState<any>(null);
-	const [conversations, setConversations] = useState<any[]>([]);
 	const [filteredConversations, setFilteredConversations] = useState<any[]>([]);
 	const [activeConv, setActiveConv] = useState<any>(null);
 	const [messages, setMessages] = useState<any[]>([]);
 	const [selectedTags, setSelectedTags] = useState<any[]>([]);
 	const [allTags, setAllTags] = useState<any[]>([]);
 
-	/* ─── load IG accounts once ─── */
+	// Load all available tags
 	useEffect(() => {
-		chat
-			.getAllConversations()
-			.then((r: any) => {
-				console.log("all conversations: ", r);
-				setAccounts(r.accounts);
-				setConversations(r.conversations);
-				setFilteredConversations(r.conversations);
-			})
-			.catch(console.error);
-
-		// Load all available tags
 		chat
 			.getTags()
 			.then((response: any) => {
-				setAllTags(response.tags || []);
+				setAllTags(response.tags);
 			})
 			.catch(console.error);
 	}, []);
 
+	// Update conversations when activeConv changes
 	useEffect(() => {
 		if (!activeConv) return;
-		setConversations((prev) =>
-			prev.map((c) =>
-				c._id === activeConv._id ? { ...c, unread_count: 0 } : c
-			)
-		);
-		const load = () =>
+
+		// Note: We can't directly modify the conversations from infinite hook
+		// The unread count reset would need to be handled differently
+		// For now, we'll just load messages without modifying conversations state
+
+		const load = () => {
 			chat
 				.messages(
 					activeConv.businessAccount.id,
@@ -48,44 +48,44 @@ export default function usePollingInbox(interval = 60_000) {
 					50
 				)
 				.then((r: any) => {
-					console.log("messages: ", r);
 					setMessages(r.messages);
 				})
 				.catch(console.error);
+		};
 
 		load();
 		const id = setInterval(load, interval);
 		return () => clearInterval(id);
 	}, [activeConv, interval]);
 
-	/* ─── filter conversations by tags ─── */
+	// Filter conversations by tags
 	const applyTagFilter = useCallback(() => {
-		let filtered = conversations;
+		let filtered = allConversations;
 
 		if (selectedTags.length > 0) {
-			filtered = conversations.filter((conv) => {
+			filtered = allConversations.filter((conv) => {
 				const convTags = conv.tags || [];
 				return selectedTags.some((tag) => convTags.includes(tag));
 			});
 		}
 
 		setFilteredConversations(filtered);
-	}, [conversations, selectedTags]);
+	}, [allConversations, selectedTags]);
 
 	useEffect(() => {
 		applyTagFilter();
 	}, [applyTagFilter]);
 
-	/* ─── send a reply then refresh the thread immediately ─── */
+	// Send message function
 	const send = useCallback(
 		async (text: any) => {
 			if (!activeConv || !text.trim()) return;
 
 			const optimisticMsg = {
-				recipient_id: activeConv.clientAccount.id,
-				sender_id: activeConv.businessAccount.id,
+				recipientid: activeConv.clientAccount.id,
+				senderid: activeConv.businessAccount.id,
 				text,
-				timestamp: { _seconds: Date.now() / 1000, _nanoseconds: 0 },
+				timestamp: { seconds: Math.floor(Date.now() / 1000), nanoseconds: 0 },
 				pending: true,
 			};
 
@@ -97,16 +97,16 @@ export default function usePollingInbox(interval = 60_000) {
 					activeConv.clientAccount.id,
 					text
 				);
-
 				setMessages((prev) =>
 					prev.map((m) => (m === optimisticMsg ? { ...m, pending: false } : m))
 				);
-				// const r: any = await chat.messages(
-				// 	activeConv.businessAccount.id,
-				// 	activeConv.clientAccount.id,
-				// 	50
-				// );
-				// setMessages(r.messages);
+
+				const r: any = await chat.messages(
+					activeConv.businessAccount.id,
+					activeConv.clientAccount.id,
+					50
+				);
+				setMessages(r.messages);
 			} catch (err) {
 				setMessages((prev) =>
 					prev.map((m) =>
@@ -121,36 +121,41 @@ export default function usePollingInbox(interval = 60_000) {
 
 	const updateConversationTags = useCallback(
 		(conversationId: any, newTags: any) => {
-			setConversations((prev) =>
-				prev.map((conv) =>
-					conv.id === conversationId ? { ...conv, tags: newTags } : conv
-				)
-			);
+			// Since we can't directly modify the conversations from infinite hook,
+			// we'll refresh the conversations to get the updated tags
+			refreshConversations();
 
 			if (activeConv && activeConv.id === conversationId) {
 				setActiveConv((prev: any) => ({ ...prev, tags: newTags }));
 			}
 		},
-		[activeConv]
+		[activeConv, refreshConversations]
 	);
 
 	return {
-		/* state */
+		// State
 		accounts,
-		conversations,
+		conversations: allConversations,
 		filteredConversations,
 		messages,
 		activeAccount,
 		activeConv,
 		selectedTags,
 		allTags,
+		conversationsLoading,
+		loadingMore,
+		hasMore,
 
-		/* setters / helpers */
+		// Setters & helpers
 		setFilteredConversations,
 		setActiveAccount,
 		setActiveConv,
 		setSelectedTags,
 		updateConversationTags,
+
+		// Actions
 		send,
+		loadMore,
+		refreshConversations,
 	};
 }

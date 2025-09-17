@@ -351,54 +351,45 @@ router.post("/webhook", async (req, res) => {
 	}
 });
 
-// Optional: Clean up old timers on server shutdown
-process.on("SIGTERM", () => {
-	conversationTimers.forEach((timer) => clearTimeout(timer));
-	conversationTimers.clear();
-});
-
-// Deprecated - Get Instagram accounts for authenticated user
-router.get("/accounts", authenticateToken, async (req, res) => {
-	try {
-		const accounts = await InstagramAccount.find({ user: req.user.uid }).lean();
-		res.json({ success: true, accounts });
-	} catch (error) {
-		res.status(500).json({ success: false, message: error.message });
-	}
-});
-
-// Deprecated - Get Instagram conversations by recipient ID (IG user ID)
-router.get("/conversations", authenticateToken, async (req, res) => {
-	const { account } = req.query;
-	if (!account) return res.status(400).json({ error: "Missing account param" });
-	try {
-		const conversations = await InstagramConversation.find({
-			"clientAccount.id": account,
-		}).lean(); // Adjust filter if needed
-		res.json({ success: true, conversations });
-	} catch (error) {
-		res.status(500).json({ error: error.message });
-	}
-});
-
 // Get all conversations and accounts for authenticated user (no messages)
 router.get("/all-conversations", authenticateToken, async (req, res) => {
 	try {
+		// Extract pagination parameters from query string
+		const { page = 1, limit = 10 } = req.query;
+		const pageNum = parseInt(page);
+		const limitNum = parseInt(limit);
+		const skip = (pageNum - 1) * limitNum;
+
+		// Get user's Instagram accounts
 		const accounts = await InstagramAccount.find({ user: req.user.uid }).lean();
 		const accountIds = accounts.map((acc) => acc.user_id);
 
-		let conversations = [];
-		for (const accountId of accountIds) {
-			const convs = await InstagramConversation.find({
-				webhook_owner_id: accountId,
-			}).lean();
-			conversations = conversations.concat(convs);
-		}
+		// Get total count for pagination metadata
+		const totalConversations = await InstagramConversation.countDocuments({
+			webhook_owner_id: { $in: accountIds },
+		});
+
+		// Get paginated conversations using $in operator (more efficient than loop)
+		const conversations = await InstagramConversation.find({
+			webhook_owner_id: { $in: accountIds },
+		})
+			.sort({ last_time: -1 }) // Sort by last_time descending (newest first)
+			.skip(skip)
+			.limit(limitNum)
+			.lean();
 
 		res.json({
 			success: true,
 			accounts,
 			conversations,
+			pagination: {
+				totalItems: totalConversations,
+				currentPage: pageNum,
+				totalPages: Math.ceil(totalConversations / limitNum),
+				pageSize: limitNum,
+				hasNextPage: pageNum < Math.ceil(totalConversations / limitNum),
+				hasPrevPage: pageNum > 1,
+			},
 		});
 	} catch (error) {
 		res.status(500).json({ error: error.message });
@@ -567,6 +558,36 @@ router.get("/recipients/:businessAccountId", async (req, res) => {
 		res.json({ success: true, recipients });
 	} catch (error) {
 		res.status(500).json({ error: "Failed to fetch recipients" });
+	}
+});
+
+// Optional: Clean up old timers on server shutdown
+process.on("SIGTERM", () => {
+	conversationTimers.forEach((timer) => clearTimeout(timer));
+	conversationTimers.clear();
+});
+
+// Deprecated - Get Instagram accounts for authenticated user
+router.get("/accounts", authenticateToken, async (req, res) => {
+	try {
+		const accounts = await InstagramAccount.find({ user: req.user.uid }).lean();
+		res.json({ success: true, accounts });
+	} catch (error) {
+		res.status(500).json({ success: false, message: error.message });
+	}
+});
+
+// Deprecated - Get Instagram conversations by recipient ID (IG user ID)
+router.get("/conversations", authenticateToken, async (req, res) => {
+	const { account } = req.query;
+	if (!account) return res.status(400).json({ error: "Missing account param" });
+	try {
+		const conversations = await InstagramConversation.find({
+			"clientAccount.id": account,
+		}).lean(); // Adjust filter if needed
+		res.json({ success: true, conversations });
+	} catch (error) {
+		res.status(500).json({ error: error.message });
 	}
 });
 

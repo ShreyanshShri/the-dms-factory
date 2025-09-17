@@ -198,7 +198,7 @@ const CRM = () => {
 		// Optimistic update
 		setContacts((prev: any[]) =>
 			prev.map((contact: any) =>
-				contact.id === contactId
+				contact._id === contactId
 					? { ...contact, crm: { ...contact.crm, notes } }
 					: contact
 			)
@@ -551,7 +551,7 @@ const CRM = () => {
 									rows={4}
 									value={selectedContact.crm?.notes || ""}
 									onChange={(e: any) =>
-										updateContactNotes(selectedContact.id, e.target.value)
+										updateContactNotes(selectedContact._id, e.target.value)
 									}
 									placeholder="Add notes about this contact..."
 								/>

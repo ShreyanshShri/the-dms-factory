@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import InstagramLoginButton from "../components/InstagramLoginButton";
 import TagsSettings from "../components/TagsSettings";
-import usePollingInbox from "../hooks/usePollingInbox.ts";
+import { useScrollToBottom } from "../hooks/useScrollToBottom";
+import usePollingInbox from "../hooks/usePollingInbox";
 import { chat } from "../services/chat";
 
 export default function ChatApp() {
@@ -13,12 +14,16 @@ export default function ChatApp() {
 		activeConv,
 		selectedTags,
 		allTags,
+		conversationsLoading,
+		loadingMore,
+		hasMore,
 		setFilteredConversations,
 		setActiveConv,
 		setSelectedTags,
 		updateConversationTags,
 		send,
-	} = usePollingInbox(); // ← defaults to 60 000 ms
+		loadMore,
+	} = usePollingInbox();
 
 	const [draft, setDraft] = useState("");
 	const [searchTerm, setSearchTerm] = useState("");
@@ -30,6 +35,12 @@ export default function ChatApp() {
 	const [loading_interested, setLoading_interested] = useState(false);
 
 	const messagesEndRef = useRef<any>(null);
+
+	const conversationsScrollRef = useScrollToBottom({
+		onScrollToBottom: loadMore,
+		threshold: 200,
+		enabled: hasMore && !loadingMore,
+	});
 
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -195,54 +206,81 @@ export default function ChatApp() {
 				</div>
 
 				{/* Conversations List */}
-				<div className="flex-1 overflow-y-auto">
-					{filteredConversations.map((conv) => (
-						<div
-							key={conv.id}
-							onClick={() => setActiveConv(conv)}
-							className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 ${
-								activeConv?.thread_id === conv.thread_id ? "bg-gray-700" : ""
-							} ${!conv.responded ? "unresponded" : ""}`}
-						>
-							<div className="flex items-center justify-between">
-								<div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg shadow-sm mr-3">
-									{conv.clientAccount?.username?.[0]?.toUpperCase() || "U"}
-								</div>
-								<div className="flex-1 min-w-0">
-									<h3 className="font-semibold text-white truncate">
-										{conv?.clientAccount?.username}
-									</h3>
-									<p className="text-sm text-gray-400 truncate">
-										{conv.last_message || "No messages"}
-									</p>
-									{(conv.tags || []).length > 0 && (
-										<div className="flex flex-wrap gap-1 mt-2">
-											{conv.tags.slice(0, 2).map((tag: any) => (
-												<span
-													key={tag}
-													className="px-2 py-1 bg-blue-900/30 text-blue-300 text-xs rounded-full"
-												>
-													{tag}
-												</span>
-											))}
-											{conv.tags.length > 2 && (
-												<span className="px-2 py-1 text-blue-300 text-xs rounded-full">
-													+{conv.tags.length - 2}
-												</span>
+				<div className="flex-1 overflow-y-auto" ref={conversationsScrollRef}>
+					{conversationsLoading && conversations.length === 0 ? (
+						<div className="flex items-center justify-center h-32">
+							<div className="text-gray-400">Loading conversations...</div>
+						</div>
+					) : (
+						<>
+							{filteredConversations.map((conv) => (
+								<div
+									key={conv.id}
+									onClick={() => setActiveConv(conv)}
+									className={`p-4 border-b border-gray-700 cursor-pointer hover:bg-gray-700 ${
+										activeConv?.thread_id === conv.thread_id
+											? "bg-gray-700"
+											: ""
+									} ${!conv.responded ? "unresponded" : ""}`}
+								>
+									<div className="flex items-center justify-between">
+										<div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold text-lg shadow-sm mr-3">
+											{conv.clientAccount?.username?.[0]?.toUpperCase() || "U"}
+										</div>
+										<div className="flex-1 min-w-0">
+											<h3 className="font-semibold text-white truncate">
+												{conv?.clientAccount?.username}
+											</h3>
+											<p className="text-sm text-gray-400 truncate">
+												{conv.last_message || "No messages"}
+											</p>
+											{(conv.tags || []).length > 0 && (
+												<div className="flex flex-wrap gap-1 mt-2">
+													{conv.tags.slice(0, 2).map((tag: any) => (
+														<span
+															key={tag}
+															className="px-2 py-1 bg-blue-900/30 text-blue-300 text-xs rounded-full"
+														>
+															{tag}
+														</span>
+													))}
+													{conv.tags.length > 2 && (
+														<span className="px-2 py-1 text-blue-300 text-xs rounded-full">
+															+{conv.tags.length - 2}
+														</span>
+													)}
+												</div>
 											)}
 										</div>
-									)}
-								</div>
-								<div className="thread-right-panel ml-3 flex items-center">
-									{conv?.unread_count > 0 && (
-										<div className="unread-count w-6 h-6 flex items-center justify-center bg-blue-500 text-white rounded-full text-xs font-semibold">
-											{conv.unread_count}
+										<div className="thread-right-panel ml-3 flex items-center">
+											{conv?.unread_count > 0 && (
+												<div className="unread-count w-6 h-6 flex items-center justify-center bg-blue-500 text-white rounded-full text-xs font-semibold">
+													{conv.unread_count}
+												</div>
+											)}
 										</div>
-									)}
+									</div>
 								</div>
-							</div>
-						</div>
-					))}
+							))}
+							{/* Loading more indicator */}
+							{loadingMore && (
+								<div className="flex items-center justify-center p-4">
+									<div className="text-gray-400 text-sm">
+										Loading more conversations...
+									</div>
+								</div>
+							)}
+
+							{/* No more conversations indicator */}
+							{!hasMore && conversations.length > 0 && (
+								<div className="flex items-center justify-center p-4">
+									<div className="text-gray-500 text-sm">
+										No more conversations
+									</div>
+								</div>
+							)}
+						</>
+					)}
 				</div>
 			</div>
 

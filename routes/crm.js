@@ -11,21 +11,34 @@ const CRMContact = require("../models/CRMContacts");
 const CRMPipeline = require("../models/CRMPipeline");
 
 // Get or create user's pipeline with default stages
+// Get or create user's pipeline with default stages
 router.get("/pipeline", authenticateToken, async (req, res) => {
 	try {
 		let pipeline = await CRMPipeline.findOne({ userId: req.user.uid }).lean();
 
 		if (!pipeline) {
-			// Create default pipeline
+			// Create user-specific stage IDs to avoid duplicates
+			const userPrefix = req.user.uid;
+
 			const defaultPipeline = new CRMPipeline({
 				userId: req.user.uid,
 				name: "Sales Pipeline",
 				description: "Default pipeline",
 				stages: [
-					{ id: "new_lead", name: "New Lead", color: "#6ac0ff", order: 0 },
-					{ id: "interested", name: "Interested", color: "#86ff86", order: 1 },
 					{
-						id: "not_interested",
+						id: `${userPrefix}_new_lead`,
+						name: "New Lead",
+						color: "#6ac0ff",
+						order: 0,
+					},
+					{
+						id: `${userPrefix}_interested`,
+						name: "Interested",
+						color: "#86ff86",
+						order: 1,
+					},
+					{
+						id: `${userPrefix}_not_interested`,
 						name: "Not Interested",
 						color: "#ff8598",
 						order: 2,
@@ -117,7 +130,7 @@ router.delete("/stages/:stageId", authenticateToken, async (req, res) => {
 		pipeline.updatedAt = new Date();
 		await pipeline.save();
 
-		const firstStageId = pipeline.stages[0]?.id || "new_lead";
+		const firstStageId = pipeline.stages[0]?.id || `${req.user.uid}_new_lead`;
 
 		// Reassign contacts belonging to deleted stage to first stage
 		await CRMContact.updateMany({ stageId }, { stageId: firstStageId });
@@ -154,7 +167,7 @@ router.get("/contacts", authenticateToken, async (req, res) => {
 
 		const contactPromises = conversations.map(async (conv) => {
 			let crmData = {
-				stageId: "new_lead",
+				stageId: `${req.user.uid}_new_lead`,
 				notes: "",
 				tags: [],
 				priority: "medium",

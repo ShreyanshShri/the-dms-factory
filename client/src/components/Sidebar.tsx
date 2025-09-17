@@ -30,7 +30,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 		{ path: "/dashboard/accounts", icon: Users, label: "Accounts" },
 		{ path: "/dashboard/campaigns", icon: Megaphone, label: "Campaigns" },
 		{ path: "/dashboard/crm", icon: Megaphone, label: "CRM" },
-		{ path: "/dashboard/messages", icon: MessageSquare, label: "Messages" },
+		// { path: "/dashboard/messages", icon: MessageSquare, label: "Messages" },
 		{ path: "/dashboard/inbox", icon: MessageSquare, label: "Unified Inbox" },
 		{ path: "/dashboard/tools", icon: Wrench, label: "Tools" },
 		{ path: "/dashboard/extension", icon: Wrench, label: "Extension" },

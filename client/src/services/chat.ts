@@ -5,7 +5,8 @@ export const chat = {
 	/* IG OAuth */
 	login: () => axiosInstance.get("/chats/login"),
 
-	getAllConversations: () => axiosInstance.get("/chats/all-conversations"),
+	getAllConversations: (page = 1, limit = 20) =>
+		axiosInstance.get(`/chats/all-conversations?page=${page}&limit=${limit}`),
 
 	/* List IG accounts that belong to the logged-in user */
 	accounts: () => axiosInstance.get("/chats/accounts"),

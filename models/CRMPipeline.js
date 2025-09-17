@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 // Stage subdocument schema
 const StageSchema = new mongoose.Schema(
 	{
-		id: { type: String, required: true, unique: true },
+		id: { type: String, required: true },
 		name: { type: String, required: true },
 		color: { type: String, default: "#f0f0f0" },
 		order: { type: Number, required: true },
