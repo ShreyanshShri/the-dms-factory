@@ -51,7 +51,6 @@ router.get("/callback", async (req, res) => {
 			})
 		);
 		const { access_token: shortTok, user_id } = tokenRes.data;
-		console.log("✅ Short token obtained for user:", user_id);
 
 		// Verify account type
 		const accountInfoRes = await axios.get("https://graph.instagram.com/me", {
@@ -61,7 +60,6 @@ router.get("/callback", async (req, res) => {
 			},
 		});
 		const accountInfo = accountInfoRes.data;
-		console.log("📋 Account details:", accountInfo);
 
 		if (accountInfo.account_type !== "BUSINESS") {
 			throw new Error(
@@ -81,24 +79,17 @@ router.get("/callback", async (req, res) => {
 			}
 		);
 		const longTok = longTokRes.data.access_token;
-		console.log(
-			"✅ Long token obtained, expires in:",
-			longTokRes.data.expires_in
-		);
 
 		// Verify long-lived token
 		const finalCheck = await axios.get("https://graph.instagram.com/me", {
 			params: { fields: "id,username,account_type", access_token: longTok },
 		});
-		console.log("✅ Long-lived token verified:", finalCheck.data.username);
 
 		// Subscribe to webhook events
 		await axios.post(
 			`https://graph.instagram.com/v23.0/me/subscribed_apps?subscribed_fields=messages&access_token=${longTok}`
 		);
 
-		// Save or update Instagram account in MongoDB
-		console.log("Account Info", accountInfo);
 		await InstagramAccount.findOneAndUpdate(
 			{ _id: String(accountInfo.user_id) }, // Using IG ID as _id
 			{
@@ -159,12 +150,12 @@ async function sendConversationWebhook(convoKey, business_account_id) {
 	try {
 		const conv = await InstagramConversation.findById(convoKey).exec();
 		if (!conv) {
-			console.log("Conversation document not found:", convoKey);
+			console.error("Conversation document not found:", convoKey);
 			return;
 		}
 
 		if (!conv.messages || conv.messages.length === 0) {
-			console.log("No messages found for conversation:", convoKey);
+			console.error("No messages found for conversation:", convoKey);
 			return;
 		}
 
@@ -176,14 +167,6 @@ async function sendConversationWebhook(convoKey, business_account_id) {
 				const label = isBusiness ? "My msg" : "Prospect";
 				formattedConversation += `${label}: ${msg.text}\n`;
 			});
-
-		console.log("Sending Conversation: ", {
-			conversation_key: convoKey,
-			business_account_id: conv.businessAccount.id,
-			client_account_id: conv.clientAccount.id,
-			formatted_conversation: formattedConversation.trim(),
-			timestamp: new Date().toISOString(),
-		});
 
 		await axios.post(
 			// "https://n8n.aigrowtech.ru/webhook/6baef27-40e8-4f77-9b77-26039c0a8d68",
@@ -310,8 +293,9 @@ router.post("/webhook", async (req, res) => {
 							username: client_username,
 						}).exec();
 						if (lead) {
+							console.log("lead", lead);
 							campaignId = lead.campaignId;
-							if (campaignId) {
+							if (campaignId && lead._id) {
 								const campaignDoc = await Campaign.findById(campaignId).exec();
 								context = campaignDoc?.context || "";
 								const analytics = await Analytics.findOne({
@@ -475,7 +459,7 @@ router.post("/send", async (req, res) => {
 	const { sender_id, recipient_id, message } = req.body;
 	if (!sender_id || !recipient_id || !message)
 		return res.status(400).json({ error: "Bad payload" });
-	console.log("Sending message:", { sender_id, recipient_id, message });
+
 	try {
 		const account = await InstagramAccount.findById(sender_id);
 		if (!account)
