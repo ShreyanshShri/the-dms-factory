@@ -346,7 +346,7 @@ const CampaignEdit = () => {
 							/>
 						</div>
 
-						<div className="mt-6">
+						{/* <div className="mt-6">
 							<label className="block text-sm font-medium text-gray-300 mb-2">
 								Context
 							</label>
@@ -357,7 +357,7 @@ const CampaignEdit = () => {
 								rows={3}
 								className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 							/>
-						</div>
+						</div> */}
 
 						<div className="mt-6">
 							<label className="block text-sm font-medium text-gray-300 mb-2">
@@ -459,7 +459,31 @@ username3`}
 								</button>
 							)}
 						</div>
-
+						<div className="tip bg-blue-900/20 border border-blue-600 rounded-lg p-4 mb-6">
+							<span className="text-blue-400 font-semibold">
+								Customize your messages with these variables:
+							</span>
+							<div className="flex justify-between text-blue-400 font-semibold mb-1">
+								<div className="mt-4">
+									<span className="p-2 bg-gray-700 rounded">{`{firstName}`}</span>
+									<span className="text-blue-300 ml-2">
+										Recipient's first name
+									</span>
+								</div>
+								<div className="mt-4">
+									<span className="p-2 bg-gray-700 rounded">{`{lastName}`}</span>
+									<span className="text-blue-300 ml-2">
+										Recipient's last name
+									</span>
+								</div>
+								<div className="mt-4">
+									<span className="p-2 bg-gray-700 rounded">{`{username}`}</span>
+									<span className="text-blue-300 ml-2">
+										Recipient's username
+									</span>
+								</div>
+							</div>
+						</div>
 						{isActiveCampaign && (
 							<p className="text-yellow-400 text-sm mb-4">
 								Message variants cannot be modified while campaign is active
@@ -504,6 +528,10 @@ username3`}
 					<div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
 						<h2 className="text-lg font-semibold text-white mb-4">
 							Working Hours
+							<span className="text-sm text-gray-500 ml-2">
+								(All timings are in Los Angeles/America (Pacific Daylight
+								Timezone))
+							</span>
 						</h2>
 
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">

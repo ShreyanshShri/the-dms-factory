@@ -307,29 +307,20 @@ const CRM = () => {
 					</div>
 					<div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
 						<div className="text-2xl font-bold text-success-600 dark:text-success-400">
-							$
-							{contacts
-								.reduce(
-									(sum: number, contact: any) =>
-										sum + (contact.crm?.value || 0),
-									0
-								)
-								.toLocaleString()}
+							{getContactsByStage(pipeline?.stages?.[1]?.id)?.length || 0}
 						</div>
 						<div className="text-sm text-gray-600 dark:text-gray-400">
-							Pipeline Value
+							Interested
 						</div>
 					</div>
 					<div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
 						<div className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-							{Math.round(
-								((getContactsByStage(
-									pipeline?.stages?.[pipeline.stages.length - 1]?.id
-								)?.length || 0) /
-									Math.max(contacts.length, 1)) *
-									100
-							)}
-							%
+							{Math.floor(
+								((getContactsByStage(pipeline?.stages?.[3]?.id)?.length || 0) /
+									(getContactsByStage(pipeline?.stages?.[0]?.id)?.length ||
+										1)) *
+									100000
+							) / 1000}
 						</div>
 						<div className="text-sm text-gray-600 dark:text-gray-400">
 							Conversion Rate

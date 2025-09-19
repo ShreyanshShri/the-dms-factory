@@ -139,7 +139,8 @@ const ExtensionDownload: React.FC = () => {
 						campaigns today
 					</p>
 					<a
-						href="https://firebasestorage.googleapis.com/v0/b/colddmspro.firebasestorage.app/o/ChromeExtensionColdDMsPro.zip?alt=media"
+						// href="https://firebasestorage.googleapis.com/v0/b/colddmspro.firebasestorage.app/o/ChromeExtensionColdDMsPro.zip?alt=media"
+						href="/buildfluence-extension.zip"
 						className="inline-flex items-center px-6 py-3 bg-white text-blue-600 rounded-lg font-semibold hover:bg-gray-100 transition-colors duration-200"
 						download
 					>

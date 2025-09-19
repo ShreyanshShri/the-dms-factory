@@ -13,6 +13,7 @@ const {
 } = require("../models/Instagram");
 const Lead = require("../models/Lead");
 const Campaign = require("../models/Campaign");
+const Analytics = require("../models/Analytics");
 
 // Login route
 router.get("/login", authenticateToken, (req, res) => {
@@ -113,8 +114,8 @@ router.get("/callback", async (req, res) => {
 
 		const redirectURL =
 			process.env.NODE_ENV === "production"
-				? "/dashboard/inbox"
-				: "http://localhost:3000/dashboard/inbox";
+				? "/dashboard/inbox?loggedIn=true"
+				: "http://localhost:3000/dashboard/inbox?loggedIn=true";
 
 		return res.redirect(redirectURL);
 	} catch (err) {
@@ -251,10 +252,19 @@ router.post("/webhook", async (req, res) => {
 						responded: business_account_id === sender_id,
 					}).exec();
 				} else {
+					const isColdDm = business_account_id === sender_id;
+					if (isColdDm) {
+						// no saved convo + DM from business account, ignore
+						return res.sendStatus(200);
+					}
+
+					// no saved convo but is a client initiated convo, continue
+
 					const accountDoc = await InstagramAccount.findById(
 						business_account_id
 					).exec();
 
+					// get sender ig info
 					let business_username = "";
 					let client_username = "";
 					if (accountDoc) {
@@ -286,8 +296,15 @@ router.post("/webhook", async (req, res) => {
 						}
 					}
 
+					// find campaignId
 					let campaignId = null;
 					let context = "";
+					let initial_message = {
+						sender_id: "",
+						recipient_id: "",
+						text: "",
+						timestamp: msgTime,
+					};
 					if (client_username) {
 						const lead = await Lead.findOne({
 							username: client_username,
@@ -297,10 +314,25 @@ router.post("/webhook", async (req, res) => {
 							if (campaignId) {
 								const campaignDoc = await Campaign.findById(campaignId).exec();
 								context = campaignDoc?.context || "";
+								const analytics = await Analytics.findOne({
+									campaignID: campaignId,
+									leadID: lead._id,
+									status: "initialdmsent",
+								});
+
+								if (analytics) {
+									initial_message = {
+										sender_id,
+										recipient_id,
+										text: analytics.message,
+										timestamp: analytics.createdAt._seconds,
+									};
+								}
 							}
 						}
 					}
 
+					// save the convo
 					conv = new InstagramConversation({
 						_id: convoKey,
 						businessAccount: {
@@ -322,7 +354,8 @@ router.post("/webhook", async (req, res) => {
 						campaignId,
 						context,
 						createdAt: new Date(),
-						messages: [],
+						// fetch single message (initial COLD DM)
+						messages: [initial_message],
 					});
 					await conv.save();
 				}
@@ -338,7 +371,8 @@ router.post("/webhook", async (req, res) => {
 					},
 				}).exec();
 
-				if (business_account_id !== sender_id) {
+				// Schedule webhook if sender is other that business (ie user sent msg)
+				if (sender_id !== business_account_id) {
 					scheduleConversationWebhook(convoKey, business_account_id, sender_id);
 				}
 			}

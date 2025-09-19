@@ -20,6 +20,7 @@ import CampaignEdit from "./pages/CampaignEdit";
 import Inbox from "./pages/Inbox";
 import Layout from "./components/Layout";
 import PaymentPlans from "./pages/PaymentOptions";
+import ContactMe from "./pages/Contact";
 import { AuthProvider } from "./contexts/AuthContext";
 import { AdminProvider } from "./contexts/AdminContext";
 import PaymentPortal from "./pages/PaymentPortal";
@@ -77,6 +78,7 @@ function App() {
 								</ProtectedRoute>
 							}
 						/>
+						<Route path="/contact" element={<ContactMe />} />
 					</Routes>
 				</AdminProvider>
 			</AuthProvider>

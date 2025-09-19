@@ -43,6 +43,12 @@ router.get("/pipeline", authenticateToken, async (req, res) => {
 						color: "#ff8598",
 						order: 2,
 					},
+					{
+						id: `${userPrefix}_booked`,
+						name: "Booked",
+						color: "#ff8598",
+						order: 2,
+					},
 				],
 				createdAt: new Date(),
 				updatedAt: new Date(),

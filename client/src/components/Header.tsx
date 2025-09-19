@@ -42,7 +42,7 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
 						<div className="w-5 h-5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-sm flex items-center justify-center shadow-sm">
 							<MessageSquare className="w-3 h-3 text-white" />
 						</div>
-						<span className="text-sm tracking-wider font-bold text-gray-900 dark:text-white tracking-tight hidden sm:block">
+						<span className="text-sm font-bold text-gray-900 dark:text-white tracking-tight hidden sm:block">
 							Buildfluence
 						</span>
 					</div>

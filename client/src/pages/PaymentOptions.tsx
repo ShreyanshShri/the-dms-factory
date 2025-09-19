@@ -2,9 +2,11 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { CreditCard, Star, Zap } from "lucide-react";
 import { checkoutLinks } from "../../checkoutLinks";
+import { useAuth } from "../contexts/AuthContext";
 
 const PaymentPlans: React.FC = () => {
 	const navigate = useNavigate();
+	const { user } = useAuth();
 
 	const planDetails = [
 		{
@@ -18,7 +20,11 @@ const PaymentPlans: React.FC = () => {
 				"Basic Templates",
 				"Email Support",
 			],
-			popular: false,
+			popular:
+				user?.subscription?.status === "active"
+					? checkoutLinks.find((plan: any) => plan.name === "Basic")?.planId ===
+					  user?.subscription?.planId
+					: false,
 			color: "from-blue-500 to-blue-600",
 		},
 		{
@@ -33,7 +39,11 @@ const PaymentPlans: React.FC = () => {
 				"Priority Support",
 				"Analytics Dashboard",
 			],
-			popular: true,
+			popular:
+				user?.subscription?.status === "active"
+					? checkoutLinks.find((plan: any) => plan.name === "Standard")
+							?.planId === user?.subscription?.planId
+					: true,
 			color: "from-purple-500 to-purple-600",
 		},
 		{
@@ -49,10 +59,20 @@ const PaymentPlans: React.FC = () => {
 				"Advanced Analytics",
 				"White Label",
 			],
-			popular: false,
+			popular:
+				user?.subscription?.status === "active"
+					? checkoutLinks.find((plan: any) => plan.name === "Premium")
+							?.planId === user?.subscription?.planId
+					: false,
 			color: "from-orange-500 to-orange-600",
 		},
 	];
+
+	console.log(
+		"checkout options",
+		checkoutLinks.find((plan: any) => plan.name === "Premium")?.planId
+	);
+	console.log("db data", user?.subscription?.planId);
 
 	const handlePlanClick = (planId: string) => {
 		navigate(`/payment-portal?planId=${planId}`);
@@ -90,7 +110,9 @@ const PaymentPlans: React.FC = () => {
 								{plan.popular && (
 									<div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
 										<span className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-1 rounded-full text-sm font-semibold">
-											Most Popular
+											{user?.subscription?.status === "active"
+												? "Current Plan"
+												: "Most Popular"}
 										</span>
 									</div>
 								)}

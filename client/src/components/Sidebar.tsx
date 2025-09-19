@@ -10,6 +10,7 @@ import {
 	X,
 	ChevronDown,
 	ChevronUp,
+	Phone,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -35,10 +36,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 		{ path: "/dashboard/tools", icon: Wrench, label: "Tools" },
 		{ path: "/dashboard/extension", icon: Wrench, label: "Extension" },
 		{ path: "/dashboard/settings", icon: Settings, label: "Settings" },
+		{ path: "/contact", icon: Phone, label: "Contact Us" },
 		{
 			path: "/dashboard/payment-plans",
 			icon: Settings,
-			label: "Payment Plans",
+			label:
+				user?.subscription?.status === "active"
+					? "Manage Subsciption"
+					: "Payment Plans",
 		},
 	];
 

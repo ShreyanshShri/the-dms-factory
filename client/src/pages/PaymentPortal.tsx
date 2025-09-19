@@ -1,5 +1,5 @@
 import { WhopCheckoutEmbed } from "@whop/checkout/react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function PaymentPortal() {
@@ -27,32 +27,35 @@ export default function PaymentPortal() {
 		);
 	}
 
-	const subscription = user.subscription || {};
-	const notExpired =
-		!subscription?.expiresAt || new Date(subscription?.expiresAt) > new Date();
-	if (user?.subscription?.status === "active" && notExpired) {
-		return (
-			<div className="admin-dashboard">
-				<div className="access-denied">
-					<h2>You are already subscribed...</h2>
-					<Link to="/dashboard">
-						<button className="login-button">Go to Dashboard</button>
-					</Link>
-				</div>
-			</div>
-		);
-	}
+	// const subscription = user.subscription || {};
+	// const notExpired =
+	// 	!subscription?.expiresAt || new Date(subscription?.expiresAt) > new Date();
+	// if (user?.subscription?.status === "active" && notExpired) {
+	// 	return (
+	// 		<div className="admin-dashboard">
+	// 			<div className="access-denied">
+	// 				<h2>You are already subscribed...</h2>
+	// 				<Link to="/dashboard">
+	// 					<button className="login-button">Go to Dashboard</button>
+	// 				</Link>
+	// 			</div>
+	// 		</div>
+	// 	);
+	// }
 
 	return (
-		<WhopCheckoutEmbed
-			planId={planId}
-			prefill={{ email: user.email }}
-			disableEmail
-			theme="dark"
-			onComplete={(planId: any, receiptId: any) => {
-				console.log(planId, receiptId);
-				navigate(`/dashboard?receiptId=${receiptId}`);
-			}}
-		/>
+		<>
+			{user?.subscription?.status === "active" && <Navigate to="/dashboard" />}
+			<WhopCheckoutEmbed
+				planId={planId}
+				prefill={{ email: user.email }}
+				disableEmail
+				theme="dark"
+				onComplete={(planId: any, receiptId: any) => {
+					console.log(planId, receiptId);
+					navigate(`/dashboard?receiptId=${receiptId}`);
+				}}
+			/>
+		</>
 	);
 }

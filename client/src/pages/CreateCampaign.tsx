@@ -92,7 +92,7 @@ const CreateCampaign = () => {
 
 			const response = await campaignAPI.createCampaign(campaignData);
 			if (response.success) {
-				navigate("/dashboard");
+				navigate("/dashboard/campaigns");
 			} else {
 				setError(response.message || "Failed to create campaign");
 			}
@@ -209,7 +209,10 @@ const CreateCampaign = () => {
 								name="leads"
 								value={formData.leads}
 								onChange={handleChange}
-								placeholder="Enter leads separated by commas or new lines"
+								placeholder={`Enter leads seperated by commas or new lines, eg
+username1
+username2
+username3`}
 								className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 								rows={4}
 							/>
@@ -225,6 +228,10 @@ const CreateCampaign = () => {
 							<div>
 								<h3 className="text-sm font-medium text-gray-300 mb-4">
 									Working Hours
+									<span className="text-gray-500 ml-2">
+										(All timings are in Los Angeles/America (Pacific Daylight
+										Timezone))
+									</span>
 								</h3>
 								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 									<div>
@@ -361,7 +368,7 @@ const CreateCampaign = () => {
 							Message Content
 						</h2>
 
-						<div className="mb-6">
+						{/* <div className="mb-6">
 							<label
 								className="block text-sm font-medium text-gray-300 mb-2"
 								htmlFor="context"
@@ -377,7 +384,7 @@ const CreateCampaign = () => {
 								className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
 								rows={3}
 							/>
-						</div>
+						</div> */}
 
 						<div>
 							<div className="flex items-center justify-between mb-4">
@@ -392,7 +399,31 @@ const CreateCampaign = () => {
 									Add Variant
 								</button>
 							</div>
-
+							<div className="tip p-4 border border-gray-600 rounded-xl mb-4">
+								<span className="text-gray-300">
+									Customize your messages with these variables:
+								</span>
+								<div className="flex justify-between">
+									<div className="mt-4">
+										<span className="p-2 bg-gray-700 rounded">{`{firstName}`}</span>
+										<span className="text-gray-300 ml-2">
+											Recipient's first name
+										</span>
+									</div>
+									<div className="mt-4">
+										<span className="p-2 bg-gray-700 rounded">{`{lastName}`}</span>
+										<span className="text-gray-300 ml-2">
+											Recipient's last name
+										</span>
+									</div>
+									<div className="mt-4">
+										<span className="p-2 bg-gray-700 rounded">{`{username}`}</span>
+										<span className="text-gray-300 ml-2">
+											Recipient's username
+										</span>
+									</div>
+								</div>
+							</div>
 							<div className="space-y-3">
 								{formData.variants.map((variant, idx) => (
 									<div key={idx} className="flex gap-3">
