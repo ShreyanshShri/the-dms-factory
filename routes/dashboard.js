@@ -11,9 +11,21 @@ const {
 	InstagramConversation,
 } = require("../models/Instagram");
 const Analytics = require("../models/Analytics");
+const Account = require("../models/Account");
 
 router.use(authenticateToken);
 router.use(subscribed);
+
+function dateToFirestoreSeconds(date) {
+	return Math.floor(date.getTime() / 1000);
+}
+function toFirestoreTimestamp(dateInput) {
+	const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+	return {
+		_seconds: Math.floor(date.getTime() / 1000),
+		_nanoseconds: (date.getTime() % 1000) * 1000000,
+	};
+}
 
 // Get overall dashboard stats
 router.get("/stats", async (req, res) => {
@@ -21,7 +33,7 @@ router.get("/stats", async (req, res) => {
 		const userId = req.user.uid;
 
 		const campaigns = await Campaign.find({ userId }).lean();
-		const accounts = await InstagramAccount.find({ user: userId }).lean();
+		const accounts = await Account.find({ userId: userId }).lean();
 
 		const totalCampaigns = campaigns.length;
 		const activeCampaigns = campaigns.filter(
@@ -35,9 +47,11 @@ router.get("/stats", async (req, res) => {
 		const activeAccounts = accounts.filter((a) => a.status === "active").length;
 		const pausedAccounts = accounts.filter((a) => a.status === "paused").length;
 
-		const yesterday = Date.now() - 24 * 60 * 60 * 1000;
+		const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 		const analyticsDocs = await Analytics.find({
-			createdAt: { $gte: new Date(yesterday) },
+			"createdAt._seconds": {
+				$gte: dateToFirestoreSeconds(twentyFourHoursAgo),
+			},
 		});
 
 		const todayMessages = analyticsDocs.filter(
@@ -93,26 +107,44 @@ router.get("/performance", async (req, res) => {
 				})
 			);
 		}
-		const campaignIds = campaigns.map((c) => String(c._id));
-		const startDate = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
-		const analyticsDocs = await Analytics.find({
-			createdAt: { $gte: startDate },
-		}).sort("createdAt");
 
+		const campaignIds = campaigns.map((c) => String(c._id));
+
+		// Fix: Convert to Firestore timestamp seconds format
+		const startDateSeconds = dateToFirestoreSeconds(
+			new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
+		);
+
+		// Fix: Query using Firestore timestamp _seconds field
+		const analyticsDocs = await Analytics.find({
+			"createdAt._seconds": { $gte: startDateSeconds },
+		})
+			.sort({ "createdAt._seconds": 1 })
+			.lean();
+
+		// Create daily data structure - fix the date generation
 		const dailyData = {};
-		const today = new Date();
+		const labels = [];
+
 		for (let i = daysAgo - 1; i >= 0; i--) {
-			const date = new Date(today.getTime() - i * 24 * 60 * 60 * 1000);
+			const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
 			const dayKey = date.toLocaleDateString("en-US", { weekday: "short" });
+			labels.push(dayKey);
 			dailyData[dayKey] = { messages: 0, replies: 0 };
 		}
 
+		// Fix: Process analytics docs with Firestore timestamp conversion
 		analyticsDocs.forEach((doc) => {
 			if (!campaignIds.includes(doc.campaignID)) return;
-			const dayKey = new Date(doc.createdAt).toLocaleDateString("en-US", {
+
+			// Convert Firestore timestamp to JavaScript Date
+			const docDate = new Date(doc.createdAt._seconds * 1000);
+			const dayKey = docDate.toLocaleDateString("en-US", {
 				weekday: "short",
 			});
+
 			if (!dailyData[dayKey]) return;
+
 			if (["initialdmsent", "followup"].includes(doc.status)) {
 				dailyData[dayKey].messages++;
 			} else if (doc.status === "replyreceived") {
@@ -120,7 +152,7 @@ router.get("/performance", async (req, res) => {
 			}
 		});
 
-		const labels = Object.keys(dailyData);
+		// Generate final data arrays in correct order
 		const messagesData = labels.map((label) => dailyData[label].messages);
 		const repliesData = labels.map((label) => dailyData[label].replies);
 
@@ -159,12 +191,20 @@ router.get("/performance", async (req, res) => {
 router.get("/campaign-rankings", async (req, res) => {
 	try {
 		const userId = req.user.uid;
-		const campaigns = await Campaign.find({ userId }).lean();
-		const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-		const analyticsDocs = await Analytics.find({
-			createdAt: { $gte: weekAgo },
-		});
 
+		const campaigns = await Campaign.find({ userId }).lean();
+
+		// Fix: Convert to Firestore timestamp seconds format
+		const weekAgoSeconds = dateToFirestoreSeconds(
+			new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+		);
+
+		// Fix: Query using Firestore timestamp _seconds field
+		const analyticsDocs = await Analytics.find({
+			"createdAt._seconds": { $gte: weekAgoSeconds },
+		}).lean();
+
+		// Initialize campaign stats
 		const campaignStats = {};
 		campaigns.forEach((c) => {
 			campaignStats[String(c._id)] = {
@@ -172,18 +212,32 @@ router.get("/campaign-rankings", async (req, res) => {
 				platform: c.platform,
 				dms: 0,
 				replies: 0,
+				replyRate: 0, // Optional: calculate reply rate
 			};
 		});
 
+		// Process analytics docs
 		analyticsDocs.forEach((doc) => {
 			const cStat = campaignStats[doc.campaignID];
 			if (!cStat) return;
-			if (["initialdmsent", "followup"].includes(doc.status)) cStat.dms++;
-			else if (doc.status === "replyreceived") cStat.replies++;
+
+			if (["initialdmsent", "followup"].includes(doc.status)) {
+				cStat.dms++;
+			} else if (doc.status === "replyreceived") {
+				cStat.replies++;
+			}
 		});
 
+		// Calculate reply rates and prepare rankings
 		const rankings = Object.values(campaignStats)
-			.sort((a, b) => b.dms - a.dms)
+			.map((campaign) => ({
+				...campaign,
+				replyRate:
+					campaign.dms > 0
+						? ((campaign.replies / campaign.dms) * 100).toFixed(1) + "%"
+						: "0%",
+			}))
+			.sort((a, b) => b.dms - a.dms) // Sort by DMs sent (you could also sort by replies or reply rate)
 			.slice(0, 5);
 
 		res.json(createResponse(true, rankings));
@@ -210,9 +264,11 @@ router.get("/recent-activity", async (req, res) => {
 
 		if (campaignIds.length === 0) return res.json(createResponse(true, []));
 
+		// Fix: Sort by Firestore timestamp _seconds field
 		const analyticsDocs = await Analytics.find({})
-			.sort({ createdAt: -1 })
-			.limit(limit * 2);
+			.sort({ "createdAt._seconds": -1 }) // Sort by newest first
+			.limit(limit * 2) // Get extra docs to account for filtering
+			.lean();
 
 		const activities = [];
 		analyticsDocs.some((doc) => {
@@ -225,25 +281,35 @@ router.get("/recent-activity", async (req, res) => {
 				} else if (doc.status === "replyreceived") {
 					action = `Received reply in ${campaignNames[doc.campaignID]}`;
 				}
+
 				if (action) {
-					const time = new Date(doc.createdAt);
+					// Fix: Convert Firestore timestamp to JavaScript Date
+					const time = new Date(doc.createdAt._seconds * 1000);
 					const now = new Date();
 					const diffMinutes = Math.floor((now - time) / (1000 * 60));
+
 					let timeStr = "";
-					if (diffMinutes < 60) timeStr = `${diffMinutes}m ago`;
-					else if (diffMinutes < 1440)
+					if (diffMinutes < 1) {
+						timeStr = "Just now";
+					} else if (diffMinutes < 60) {
+						timeStr = `${diffMinutes}m ago`;
+					} else if (diffMinutes < 1440) {
 						timeStr = `${Math.floor(diffMinutes / 60)}h ago`;
-					else timeStr = `${Math.floor(diffMinutes / 1440)}d ago`;
+					} else {
+						timeStr = `${Math.floor(diffMinutes / 1440)}d ago`;
+					}
 
 					activities.push({
 						action,
 						time: timeStr,
 						platform: doc.platform || "instagram",
+						username: doc.username || "Unknown", // Optional: include username
+						timestamp: doc.createdAt._seconds, // Optional: include raw timestamp for sorting
 					});
 				}
-				return false;
+				return false; // Continue processing
 			}
-			return false;
+			return false; // Continue processing
 		});
 
 		res.json(createResponse(true, activities));
@@ -303,7 +369,7 @@ router.get("/recent-messages", authenticateToken, async (req, res) => {
 					const campaign = await Campaign.findById(conv.campaignId).lean();
 					if (campaign) campaignName = campaign.name || "Unnamed Campaign";
 				} catch (err) {
-					console.log("Campaign fetch error:", err);
+					console.error("Campaign fetch error:", err);
 				}
 			}
 

@@ -17,6 +17,9 @@ const Index = () => {
 						<li>
 							<a href="#reviews">Reviews</a>
 						</li>
+						<li>
+							<a href="/contact">Contact Us</a>
+						</li>
 					</ul>
 					<Link to="/login" className="cta-button">
 						Get Started
@@ -27,34 +30,32 @@ const Index = () => {
 			<section className="hero">
 				<div className="hero-content">
 					<div className="hero-badge">
-						{/* <span>Send 50 DMs/Day For Free</span> */}
+						<span>Send 50 DMs/Day For Free</span>
 					</div>
 					<h1 className="hero-title">
-						{/* Turn Cold Outreach Into Clients on Autopilot */}
-						Manage Instagram Conversations with Ease
+						Turn Cold Outreach Into Clients on Autopilot
+						{/* Manage Instagram Conversations with Ease */}
 					</h1>
 					<p className="hero-description">
-						{/* Scale your pipeline with AI-powered Cold DMs that find, qualify, and
-						convert leads—so you focus on closing deals, not chasing them */}
-						Streamline your Costumer Relationship management with our
-						easy-to-use platform.
+						Scale your pipeline with AI-powered Cold DMs that find, qualify, and
+						convert leads—so you focus on closing deals, not chasing them
+						{/* Streamline your Costumer Relationship management with our
+						easy-to-use platform. */}
 					</p>
 					<Link to="/login" className="hero-button">
 						Start Free Trial
 					</Link>
 				</div>
-				<div className="hero-image">
+				{/* <div className="hero-image">
 					<img
-						src="https://framerusercontent.com/images/JSakO3iDpBY0uvb9cOV7x278fQM.png"
+						// src="https://framerusercontent.com/images/JSakO3iDpBY0uvb9cOV7x278fQM.png"
+						src="/index-page-assets/dashboard.png"
 						alt="Buildfluence Dashboard"
 					/>
 				</div>
 				<div className="hero-bg-shape">
-					<img
-						src="https://framerusercontent.com/images/0pkkUPiiBy68AdWhcnSLJijrCvQ.svg"
-						alt="Background Shape"
-					/>
-				</div>
+					<img src="/index-page-assets/glow.svg" alt="Background Shape" />
+				</div> */}
 			</section>
 
 			<section className="brand-section">
@@ -65,34 +66,19 @@ const Index = () => {
 					</p>
 					<div className="brand-logos">
 						<div className="brand-logo">
-							<img
-								src="https://framerusercontent.com/images/NRfKXq6QSssXzPVwh2f9BVaSfHM.svg"
-								alt="Brand 1"
-							/>
+							<img src="/index-page-assets/zenzap.svg" alt="Brand 1" />
 						</div>
 						<div className="brand-logo">
-							<img
-								src="https://framerusercontent.com/images/VD18GFUi569ZjbTmkE4Gaf4wO1U.svg"
-								alt="Brand 2"
-							/>
+							<img src="/index-page-assets/lumlabs.svg" alt="Brand 2" />
 						</div>
 						<div className="brand-logo">
-							<img
-								src="https://framerusercontent.com/images/8DeGxzvY0rbsiJVjiRmUgWOHao.svg"
-								alt="Brand 3"
-							/>
+							<img src="/index-page-assets/craftgram.svg" alt="Brand 3" />
 						</div>
 						<div className="brand-logo">
-							<img
-								src="https://framerusercontent.com/images/Y0sX7FMoYwLcaHk7TPrlyjznEw.svg"
-								alt="Brand 4"
-							/>
+							<img src="/index-page-assets/pulse.svg" alt="Brand 4" />
 						</div>
 						<div className="brand-logo">
-							<img
-								src="https://framerusercontent.com/images/mj4kLxXydnHlERfGT4bh5ypC8U.svg"
-								alt="Brand 5"
-							/>
+							<img src="/index-page-assets/sparkle.svg" alt="Brand 5" />
 						</div>
 					</div>
 				</div>
@@ -112,34 +98,29 @@ const Index = () => {
 					<div className="about-cards">
 						<div className="about-card">
 							<div className="about-card-icon">
-								<img
-									src="https://framerusercontent.com/images/YZtjBfZ0cBhwUl5Q25jjkjZ1ASc.svg"
-									alt="Icon"
-								/>
+								<img src="/index-page-assets/fast-star.svg" alt="Icon" />
 							</div>
 							<h4>Fill your calendar with qualified calls</h4>
 							<p>
-								{/* Let AI handle the outreach and follow-ups while you focus on */}
-								Let AI handle the follow-ups while you focus on closing deals.
+								Let AI handle the outreach and follow-ups while you focus on
+								closing deals.
+								{/* Let AI handle the follow-ups while you focus on closing deals. */}
 								Buildfluence keeps your pipeline full with real prospects who
 								actually want to talk.
 							</p>
 						</div>
 						<div className="about-card">
 							<div className="about-card-icon">
-								<img
-									src="https://framerusercontent.com/images/YZtjBfZ0cBhwUl5Q25jjkjZ1ASc.svg"
-									alt="Icon"
-								/>
+								<img src="/index-page-assets/fast-star.svg" alt="Icon" />
 							</div>
 							<h4>Target the right audience instantly</h4>
 							<p>
-								{/* No more guesswork. Use Buildfluence's smart filters and
+								No more guesswork. Use Buildfluence's smart filters and
 								lead-sourcing tools to connect with your{" "}
-								<strong>ideal clients</strong> in seconds. */}
-								No more juggling between the inbox and your calendar. Use
-								Buildfluence's smart filters and tools to connect with your{" "}
 								<strong>ideal clients</strong> in seconds.
+								{/* No more juggling between the inbox and your calendar. Use
+								Buildfluence's smart filters and tools to connect with your{" "}
+								<strong>ideal clients</strong> in seconds. */}
 							</p>
 						</div>
 					</div>
@@ -151,8 +132,8 @@ const Index = () => {
 					<div className="section-header">
 						<h2>Get Connected Faster</h2>
 						<p>
-							{/* Our AI outreach engine helps you cut through the noise, land in */}
 							Our AI outreach engine helps you cut through the noise, land in
+							{/* Our AI outreach engine helps you cut through the noise, land in */}
 							the right inboxes, and spark real conversations.
 						</p>
 					</div>
@@ -168,7 +149,7 @@ const Index = () => {
 								<div className="feature-stat-text">Faster Integration</div>
 							</div>
 						</div>
-						{/* <div className="feature-card">
+						<div className="feature-card">
 							<h3>Your AI-Powered DM Setter</h3>
 							<p>
 								From getting leads to sending follow-ups, our integrated AI
@@ -182,7 +163,7 @@ const Index = () => {
 									Happy customers worldwide
 								</div>
 							</div>
-						</div> */}
+						</div>
 					</div>
 				</div>
 			</section>
@@ -199,10 +180,7 @@ const Index = () => {
 					<div className="core-features-list">
 						<div className="core-feature">
 							<div className="core-feature-image">
-								<img
-									src="https://framerusercontent.com/images/uC5t2RyWcIiCzuVogtJEIyJrc.svg"
-									alt="Find Prospects"
-								/>
+								<img src="/index-page-assets/graph.svg" alt="Find Prospects" />
 							</div>
 							<div className="core-feature-content">
 								<h2>Find Prospects That Matter</h2>
@@ -218,12 +196,9 @@ const Index = () => {
 								</Link>
 							</div>
 						</div>
-						{/* <div className="core-feature">
+						<div className="core-feature">
 							<div className="core-feature-image">
-								<img
-									src="https://framerusercontent.com/images/T2XWd3JDcA0zUzD6bi7g9DNo7g.svg"
-									alt="Launch Campaigns"
-								/>
+								<img src="/index-page-assets/web.svg" alt="Launch Campaigns" />
 							</div>
 							<div className="core-feature-content">
 								<h2>Launch Human-Like DM Campaigns</h2>
@@ -236,11 +211,11 @@ const Index = () => {
 									Try Today
 								</Link>
 							</div>
-						</div> */}
-						{/* <div className="core-feature">
+						</div>
+						<div className="core-feature">
 							<div className="core-feature-image">
 								<img
-									src="https://framerusercontent.com/images/zLXAoOtJ383xmTfVCM7atAwY5VA.svg"
+									src="/index-page-assets/graph2.svg"
 									alt="Manage Dashboard"
 								/>
 							</div>
@@ -258,7 +233,7 @@ const Index = () => {
 									Start Sending
 								</Link>
 							</div>
-						</div> */}
+						</div>
 					</div>
 				</div>
 			</section>
@@ -286,9 +261,9 @@ const Index = () => {
 								per person, per month For Both Instagram and X
 							</p>
 							<ul className="pricing-features">
-								{/* <li>Unlimited Accounts</li> */}
-								{/* <li>Unlimited Campaigns</li> */}
-								{/* <li>Send 10,000 DMs/Day</li> */}
+								<li>Unlimited Accounts</li>
+								<li>Unlimited Campaigns</li>
+								<li>Send 10,000 DMs/Day</li>
 								<li>Comprehensive Dashboard</li>
 								<li>Dedicated Support</li>
 								<li>Elite Community</li>
@@ -302,9 +277,9 @@ const Index = () => {
 							<h3>Premium</h3>
 							<p className="subtitle">Best For Starting</p>
 							<div className="price">$97</div>
-							{/* <p className="price-subtitle">
+							<p className="price-subtitle">
 								per person, per month For Both Instagram and X
-							</p> */}
+							</p>
 							<ul className="pricing-features">
 								<li>Everything In Basic plan</li>
 								<li>Unified Inbox to handle multiple Accounts</li>
@@ -320,9 +295,9 @@ const Index = () => {
 							<h3>Standard</h3>
 							<p className="subtitle">For Maximum Results</p>
 							<div className="price">$149</div>
-							{/* <p className="price-subtitle">
+							<p className="price-subtitle">
 								per person, per month For Both Instagram and X
-							</p> */}
+							</p>
 							<ul className="pricing-features">
 								<li>Everything in Premium Plan</li>
 								<li>Dedicated AI DM Setter</li>
@@ -346,7 +321,7 @@ const Index = () => {
 							Buildfluence's Powerful AI SAAS Solutions
 						</p>
 					</div>
-					{/* <div className="testimonials-grid">
+					<div className="testimonials-grid">
 						<div className="testimonial-card">
 							<p className="testimonial-text">
 								"I used to hate cold outreach 'cause it felt spammy. With
@@ -356,7 +331,7 @@ const Index = () => {
 							<div className="testimonial-author">
 								<div className="testimonial-avatar">
 									<img
-										src="https://framerusercontent.com/images/eDob9dCIl1Gl9vu7UmnWBMzKI.jpg"
+										src="/index-page-assets/sarah.avif"
 										alt="Sarah Taranian"
 									/>
 								</div>
@@ -374,13 +349,10 @@ const Index = () => {
 							</p>
 							<div className="testimonial-author">
 								<div className="testimonial-avatar">
-									<img
-										src="https://framerusercontent.com/images/80cSf51vznokzM44ZvySMsxkWjE.jpg"
-										alt="Emily Hudson"
-									/>
+									<img src="/index-page-assets/adam.avif" alt="Emily Hudson" />
 								</div>
 								<div className="testimonial-info">
-									<h4>Emily Hudson</h4>
+									<h4>Adam Hudson</h4>
 									<p>Marketing Agency</p>
 								</div>
 							</div>
@@ -393,10 +365,7 @@ const Index = () => {
 							</p>
 							<div className="testimonial-author">
 								<div className="testimonial-avatar">
-									<img
-										src="https://framerusercontent.com/images/ocuc7j8FeCKMvkJwnfXvnofJc.jpg"
-										alt="John Depp"
-									/>
+									<img src="/index-page-assets/john.avif" alt="John Depp" />
 								</div>
 								<div className="testimonial-info">
 									<h4>John Depp</h4>
@@ -412,10 +381,7 @@ const Index = () => {
 							</p>
 							<div className="testimonial-author">
 								<div className="testimonial-avatar">
-									<img
-										src="https://framerusercontent.com/images/3b8QuAx2Cb8H9BulsjLzSM5Jqss.jpg"
-										alt="David Megan"
-									/>
+									<img src="/index-page-assets/david.avif" alt="David Megan" />
 								</div>
 								<div className="testimonial-info">
 									<h4>David Megan</h4>
@@ -431,10 +397,7 @@ const Index = () => {
 							</p>
 							<div className="testimonial-author">
 								<div className="testimonial-avatar">
-									<img
-										src="https://framerusercontent.com/images/iFuswefZ1RQ9td8i2xp0uuXbFSg.jpg"
-										alt="Mark Logan"
-									/>
+									<img src="/index-page-assets/mark.avif" alt="Mark Logan" />
 								</div>
 								<div className="testimonial-info">
 									<h4>Mark Logan</h4>
@@ -451,7 +414,7 @@ const Index = () => {
 							<div className="testimonial-author">
 								<div className="testimonial-avatar">
 									<img
-										src="https://framerusercontent.com/images/hCnsK8rc82TnJXAWSVth7bBVqkE.jpg"
+										src="/index-page-assets/david-chen.avif"
 										alt="David Chen"
 									/>
 								</div>
@@ -461,7 +424,7 @@ const Index = () => {
 								</div>
 							</div>
 						</div>
-					</div> */}
+					</div>
 				</div>
 			</section>
 
@@ -485,14 +448,14 @@ const Index = () => {
 							</button>
 							<div className="faq-answer">
 								<p>
-									{/* Buildfluence is an AI-powered outreach platform that automates
+									Buildfluence is an AI-powered outreach platform that automates
 									Instagram & Twitter/X DMs. It works like a virtual DM
 									setter—finding leads, sending personalized messages, following
-									up, and tracking results in one dashboard. */}
-									Buildfluence is an AI-powered platform that automates Costumer
+									up, and tracking results in one dashboard.
+									{/* Buildfluence is an AI-powered platform that automates Costumer
 									Relationship Management (CRM). It works like a virtual DM
 									setter—finding leads, sending personalized messages, following
-									up, and tracking results in one dashboard.
+									up, and tracking results in one dashboard. */}
 								</p>
 							</div>
 						</div>

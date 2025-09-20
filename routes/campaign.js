@@ -663,6 +663,7 @@ router.get("/fetch-leads", async (req, res) => {
 					batchSize: 0,
 					message: "No leads available",
 				});
+				// restart the campaign else mark as complete
 			} else {
 				leads = await LeadService.fetchLeadsForProcessing(
 					campaignID,

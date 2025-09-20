@@ -345,6 +345,11 @@ export default function ChatApp() {
 										{m.timestamp && (
 											<p className="text-xs opacity-75 mt-1">
 												{new Date(m.timestamp).toLocaleTimeString()}
+												{" - "}
+												{new Date(m.timestamp).toLocaleDateString("en-US", {
+													day: "numeric",
+													month: "short",
+												})}
 											</p>
 										)}
 									</div>

@@ -15,6 +15,14 @@ const Lead = require("../models/Lead");
 const Campaign = require("../models/Campaign");
 const Analytics = require("../models/Analytics");
 
+function toFirestoreTimestamp(dateInput) {
+	const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+	return {
+		_seconds: Math.floor(date.getTime() / 1000),
+		_nanoseconds: (date.getTime() % 1000) * 1000000,
+	};
+}
+
 // Login route
 router.get("/login", authenticateToken, (req, res) => {
 	const scopes = "instagram_business_basic,instagram_business_manage_messages";
@@ -176,6 +184,7 @@ async function sendConversationWebhook(convoKey, business_account_id) {
 				conversation_key: convoKey,
 				business_account_id: conv.businessAccount.id,
 				client_account_id: conv.clientAccount.id,
+				client_username: conv.clientAccount.username,
 				formatted_conversation: formattedConversation.trim(),
 				timestamp: new Date().toISOString(),
 			}
@@ -250,6 +259,8 @@ router.post("/webhook", async (req, res) => {
 					// get sender ig info
 					let business_username = "";
 					let client_username = "";
+					let campaignId = null;
+					let lead = null;
 					if (accountDoc) {
 						try {
 							const token = accountDoc.access_token;
@@ -280,16 +291,15 @@ router.post("/webhook", async (req, res) => {
 					}
 
 					// find campaignId
-					let campaignId = null;
 					let context = "";
 					let initial_message = {
-						sender_id: "",
-						recipient_id: "",
+						sender_id: recipient_id,
+						recipient_id: sender_id,
 						text: "",
 						timestamp: msgTime,
 					};
 					if (client_username) {
-						const lead = await Lead.findOne({
+						lead = await Lead.findOne({
 							username: client_username,
 						}).exec();
 						if (lead) {
@@ -306,8 +316,8 @@ router.post("/webhook", async (req, res) => {
 
 								if (analytics) {
 									initial_message = {
-										sender_id,
-										recipient_id,
+										sender_id: recipient_id,
+										recipient_id: sender_id,
 										text: analytics.message,
 										timestamp: analytics.createdAt._seconds,
 									};
@@ -342,8 +352,29 @@ router.post("/webhook", async (req, res) => {
 						messages: [initial_message],
 					});
 					await conv.save();
+
+					// post analytics
+					if (
+						campaignId &&
+						lead._id &&
+						client_username &&
+						client_username !== ""
+					) {
+						const now = toFirestoreTimestamp(new Date());
+						const analytics = new Analytics({
+							campaignID: campaignId,
+							leadID: lead._id,
+							username: client_username,
+							message: msgText,
+							status: "replyreceived",
+							platform: "instagram",
+							timestamp: now,
+							createdAt: now,
+						});
+						await analytics.save();
+					}
 				}
-				// Append message
+				// Append message (problematic)
 				await InstagramConversation.findByIdAndUpdate(convoKey, {
 					$push: {
 						messages: {

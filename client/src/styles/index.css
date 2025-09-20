@@ -95,7 +95,7 @@ body {
 
 /* Hero Section */
 .hero {
-	padding: 160px 0px 145vh;
+	padding: 160px 0px 10vh;
 	position: relative;
 	overflow: hidden;
 	background: var(--token-30adfd80-ecab-4819-b6d1-8070a9e3e5af);
@@ -175,8 +175,9 @@ body {
 
 .hero-image img {
 	width: 100%;
-	height: 100%;
-	object-fit: cover;
+	/* height: 100%; */
+	height: auto;
+	/* object-fit: cover; */
 	border-radius: 16px;
 }
 

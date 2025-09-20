@@ -44,17 +44,18 @@ const Overview: React.FC = () => {
 	});
 
 	useEffect(() => {
+		console.log("Fetching dashboard data... from useeffect");
 		fetchDashboardData();
 
 		// Set up polling for real-time updates every 30 seconds
-		const interval = setInterval(fetchDashboardData, 30000);
-		return () => clearInterval(interval);
+		// const interval = setInterval(fetchDashboardData, 30000);
+		// return () => clearInterval(interval);
 	}, []);
 
 	const fetchDashboardData = async (): Promise<void> => {
 		try {
 			setState((prev) => ({ ...prev, error: null }));
-
+			console.log("Fetching dashboard data...");
 			const [statsRes, performanceRes, rankingsRes, activityRes] =
 				await Promise.all([
 					dashboardAPI.getStats(),
@@ -62,7 +63,10 @@ const Overview: React.FC = () => {
 					dashboardAPI.getCampaignRankings(),
 					dashboardAPI.getRecentActivity(),
 				]);
-
+			console.log("statsRes", statsRes);
+			console.log("performanceRes", performanceRes);
+			console.log("rankingsRes", rankingsRes);
+			console.log("activityRes", activityRes);
 			setState((prev) => ({
 				...prev,
 				stats: statsRes.success ? statsRes.data : prev.stats,

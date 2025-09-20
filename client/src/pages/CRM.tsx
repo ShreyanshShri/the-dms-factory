@@ -321,6 +321,7 @@ const CRM = () => {
 										1)) *
 									100000
 							) / 1000}
+							{"%"}
 						</div>
 						<div className="text-sm text-gray-600 dark:text-gray-400">
 							Conversion Rate
