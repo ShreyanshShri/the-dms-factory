@@ -21,6 +21,8 @@ import Inbox from "./pages/Inbox";
 import Layout from "./components/Layout";
 import PaymentPlans from "./pages/PaymentOptions";
 import ContactMe from "./pages/Contact";
+import { AlertProvider } from "./contexts/AlertContext";
+import AlertContainer from "./components/AlertContainer";
 import { AuthProvider } from "./contexts/AuthContext";
 import { AdminProvider } from "./contexts/AdminContext";
 import PaymentPortal from "./pages/PaymentPortal";
@@ -30,56 +32,59 @@ function App() {
 		<ThemeProvider>
 			<AuthProvider>
 				<AdminProvider>
-					<Routes>
-						<Route path="/" element={<Index />} />
-						<Route path="/dashboard" element={<Dashboard />}>
-							<Route index element={<Overview />} />
-							<Route path="accounts" element={<Accounts />} />
-							<Route path="campaigns" element={<Campaigns />} />
-							<Route path="messages" element={<Messages />} />
-							<Route path="tools" element={<Tools />} />
-							<Route path="settings" element={<SettingsPage />} />
-							<Route path="crm" element={<CRM />} />
-							<Route path="extension" element={<ExtensionDownload />} />
-							<Route path="create-campaign" element={<CreateCampaign />} />
-							<Route path="payment-plans" element={<PaymentPlans />} />
+					<AlertProvider>
+						<Routes>
+							<Route path="/" element={<Index />} />
+							<Route path="/dashboard" element={<Dashboard />}>
+								<Route index element={<Overview />} />
+								<Route path="accounts" element={<Accounts />} />
+								<Route path="campaigns" element={<Campaigns />} />
+								<Route path="messages" element={<Messages />} />
+								<Route path="tools" element={<Tools />} />
+								<Route path="settings" element={<SettingsPage />} />
+								<Route path="crm" element={<CRM />} />
+								<Route path="extension" element={<ExtensionDownload />} />
+								<Route path="create-campaign" element={<CreateCampaign />} />
+								<Route path="payment-plans" element={<PaymentPlans />} />
+								<Route
+									path="campaign-info/:campaignId"
+									element={<CampaignInfo />}
+								/>
+								<Route
+									path="campaign-edit/:campaignId"
+									element={<CampaignEdit />}
+								/>
+							</Route>
 							<Route
-								path="campaign-info/:campaignId"
-								element={<CampaignInfo />}
+								path="/dashboard/inbox"
+								element={
+									<Layout withPadding={false}>
+										<Inbox />
+									</Layout>
+								}
+							/>
+							<Route path="/login" element={<Login />} />
+							<Route path="/register" element={<Register />} />
+							<Route
+								path="/payment-portal"
+								element={
+									<ProtectedRoute>
+										<PaymentPortal />
+									</ProtectedRoute>
+								}
 							/>
 							<Route
-								path="campaign-edit/:campaignId"
-								element={<CampaignEdit />}
+								path="/billing"
+								element={
+									<ProtectedRoute>
+										<Billing />
+									</ProtectedRoute>
+								}
 							/>
-						</Route>
-						<Route
-							path="/dashboard/inbox"
-							element={
-								<Layout withPadding={false}>
-									<Inbox />
-								</Layout>
-							}
-						/>
-						<Route path="/login" element={<Login />} />
-						<Route path="/register" element={<Register />} />
-						<Route
-							path="/payment-portal"
-							element={
-								<ProtectedRoute>
-									<PaymentPortal />
-								</ProtectedRoute>
-							}
-						/>
-						<Route
-							path="/billing"
-							element={
-								<ProtectedRoute>
-									<Billing />
-								</ProtectedRoute>
-							}
-						/>
-						<Route path="/contact" element={<ContactMe />} />
-					</Routes>
+							<Route path="/contact" element={<ContactMe />} />
+						</Routes>
+						<AlertContainer />
+					</AlertProvider>
 				</AdminProvider>
 			</AuthProvider>
 		</ThemeProvider>

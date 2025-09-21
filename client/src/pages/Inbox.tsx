@@ -4,6 +4,8 @@ import TagsSettings from "../components/TagsSettings";
 import { useScrollToBottom } from "../hooks/useScrollToBottom";
 import usePollingInbox from "../hooks/usePollingInbox";
 import { chat } from "../services/chat";
+import { useAlert } from "../contexts/AlertContext";
+import { useSearchParams } from "react-router-dom";
 
 export default function ChatApp() {
 	const {
@@ -24,6 +26,7 @@ export default function ChatApp() {
 		send,
 		loadMore,
 	} = usePollingInbox();
+	const alert = useAlert();
 
 	const [draft, setDraft] = useState("");
 	const [searchTerm, setSearchTerm] = useState("");
@@ -41,6 +44,18 @@ export default function ChatApp() {
 		threshold: 200,
 		enabled: hasMore && !loadingMore,
 	});
+
+	const [searchParams] = useSearchParams();
+	const loggedIn = searchParams.get("loggedIn");
+	const username = searchParams.get("username");
+	useEffect(() => {
+		console.log("loggedIn", loggedIn);
+		if (loggedIn === "true") {
+			alert.success(
+				`Successfully connected account ${username} to Unified Inbox`
+			);
+		}
+	}, []);
 
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

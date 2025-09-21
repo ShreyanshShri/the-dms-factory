@@ -113,8 +113,8 @@ router.get("/callback", async (req, res) => {
 
 		const redirectURL =
 			process.env.NODE_ENV === "production"
-				? "/dashboard/inbox?loggedIn=true"
-				: "http://localhost:3000/dashboard/inbox?loggedIn=true";
+				? `/dashboard/inbox?loggedIn=true&username=${accountInfo.username}`
+				: `http://localhost:3000/dashboard/inbox?loggedIn=true&username=${accountInfo.username}`;
 
 		return res.redirect(redirectURL);
 	} catch (err) {
