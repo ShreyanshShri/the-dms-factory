@@ -188,17 +188,90 @@ router.post("/create", async (req, res) => {
 	}
 });
 
-// GET /api/v1/campaign/ - Get all campaigns
+// get all campaigns
 router.get("/", async (req, res) => {
 	try {
 		const campaigns = await Campaign.find({ userId: req.user.uid }).lean();
+		const campaignIds = campaigns.map((c) => c._id.toString());
 
-		const responseCampaigns = campaigns.map((campaign) => ({
-			id: campaign._id,
-			...campaign,
-			leads: [],
-			leadsCount: campaign.totalLeads,
-		}));
+		// Get ALL stats in 3 bulk queries instead of N*3 queries
+		const [accountsData, dmsSentData, repliesData] = await Promise.all([
+			// Bulk accounts query - group by campaign
+			Account.aggregate([
+				{
+					$match: {
+						userId: req.user.uid,
+						currentCampaignId: { $in: campaignIds },
+					},
+				},
+				{
+					$group: {
+						_id: "$currentCampaignId",
+						count: { $sum: 1 },
+					},
+				},
+			]),
+
+			// Bulk DMs sent query - group by campaign
+			Analytics.aggregate([
+				{
+					$match: {
+						campaignID: { $in: campaignIds },
+						status: "initialdmsent",
+					},
+				},
+				{
+					$group: {
+						_id: "$campaignID",
+						count: { $sum: 1 },
+					},
+				},
+			]),
+
+			// Bulk replies query - group by campaign
+			Analytics.aggregate([
+				{
+					$match: {
+						campaignID: { $in: campaignIds },
+						status: "replyreceived",
+					},
+				},
+				{
+					$group: {
+						_id: "$campaignID",
+						count: { $sum: 1 },
+					},
+				},
+			]),
+		]);
+
+		// Convert arrays to maps for O(1) lookup
+		const accountsMap = Object.fromEntries(
+			accountsData.map((item) => [item._id, item.count])
+		);
+		const dmsSentMap = Object.fromEntries(
+			dmsSentData.map((item) => [item._id, item.count])
+		);
+		const repliesMap = Object.fromEntries(
+			repliesData.map((item) => [item._id, item.count])
+		);
+
+		// Map stats to campaigns
+		const responseCampaigns = campaigns.map((campaign) => {
+			const campaignId = campaign._id.toString();
+
+			return {
+				id: campaign._id,
+				...campaign,
+				leads: [],
+				leadsCount: campaign.totalLeads,
+				stats: {
+					accounts: accountsMap[campaignId] || 0,
+					dmsSent: dmsSentMap[campaignId] || 0,
+					replies: repliesMap[campaignId] || 0,
+				},
+			};
+		});
 
 		res.json({
 			name: req.user.name || "User",

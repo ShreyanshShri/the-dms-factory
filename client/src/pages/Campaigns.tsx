@@ -43,6 +43,10 @@ const Campaigns: React.FC = () => {
 		error: null,
 	});
 
+	useEffect(() => {
+		console.log("state", state);
+	}, [state]);
+
 	// const [selectedCampaigns, setSelectedCampaigns] = useState<Set<string>>(
 	// 	new Set()
 	// );
@@ -465,7 +469,7 @@ const Campaigns: React.FC = () => {
 												<span className="text-sm text-gray-500">Accounts</span>
 											</div>
 											<p className="font-semibold text-gray-900 dark:text-white">
-												{analytics?.accounts || 0}
+												{campaign?.stats?.accounts || 0}
 											</p>
 										</div>
 
@@ -487,7 +491,7 @@ const Campaigns: React.FC = () => {
 												<span className="text-sm text-gray-500">DMs Sent</span>
 											</div>
 											<p className="font-semibold text-gray-900 dark:text-white">
-												{analytics?.dmsSent?.toLocaleString() || 0}
+												{campaign?.stats?.dmsSent || 0}
 											</p>
 										</div>
 
@@ -497,7 +501,7 @@ const Campaigns: React.FC = () => {
 												<span className="text-sm text-gray-500">Replies</span>
 											</div>
 											<p className="font-semibold text-gray-900 dark:text-white">
-												{analytics?.replies || 0}
+												{campaign?.stats?.replies || 0}
 											</p>
 										</div>
 									</div>
@@ -507,7 +511,12 @@ const Campaigns: React.FC = () => {
 										<div className="flex justify-between items-center mb-1">
 											<span className="text-sm text-gray-500">Engagement</span>
 											<span className="text-sm font-medium text-gray-900 dark:text-white">
-												{analytics?.engagement?.toFixed(1) || 0}%
+												{Math.floor(
+													((campaign?.stats?.replies || 0) /
+														(campaign?.stats?.dmsSent || 1)) *
+														10000
+												) / 100}
+												%
 											</span>
 										</div>
 										<div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
@@ -515,7 +524,11 @@ const Campaigns: React.FC = () => {
 												className="bg-green-600 h-2 rounded-full transition-all duration-300"
 												style={{
 													width: `${Math.min(
-														analytics?.engagement || 0,
+														Math.round(
+															((campaign?.stats?.replies || 0) /
+																(campaign?.stats?.dmsSent || 1)) *
+																100
+														),
 														100
 													)}%`,
 												}}
@@ -548,10 +561,11 @@ const Campaigns: React.FC = () => {
 												{updatingCampaignStatus ? "Starting..." : "Start"}
 											</button>
 										)}
-										<Link to={`/dashboard/campaign-edit/${campaign.id}`}>
-											<button className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors">
-												<Edit className="w-4 h-4" />
-											</button>
+										<Link
+											to={`/dashboard/campaign-edit/${campaign.id}`}
+											className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
+										>
+											<Edit className="w-4 h-4" />
 										</Link>
 										<button
 											onClick={() =>

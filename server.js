@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const express = require("express");
+const mongoose = require("mongoose");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const cookieParser = require("cookie-parser");
@@ -26,6 +27,32 @@ const { connect } = require("http2");
 const app = express();
 
 connectDB();
+
+// After mongoose connection is established
+mongoose.connection.once("open", async () => {
+	console.log("Connected to MongoDB");
+
+	try {
+		// Add indexes
+		await mongoose.connection.db.collection("accounts").createIndex({
+			userId: 1,
+			currentCampaignId: 1,
+		});
+
+		await mongoose.connection.db.collection("analytics").createIndex({
+			campaignID: 1,
+			status: 1,
+		});
+
+		await mongoose.connection.db.collection("campaigns").createIndex({
+			userId: 1,
+		});
+
+		console.log("Indexes created successfully");
+	} catch (error) {
+		console.error("Error creating indexes:", error);
+	}
+});
 
 // CORS setup
 setupCors(app);

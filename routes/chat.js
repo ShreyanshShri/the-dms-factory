@@ -419,10 +419,15 @@ router.get("/all-conversations", authenticateToken, async (req, res) => {
 		});
 
 		// Get paginated conversations using $in operator (more efficient than loop)
-		const conversations = await InstagramConversation.find({
-			webhook_owner_id: { $in: accountIds },
-		})
-			.sort({ last_time: -1 }) // Sort by last_time descending (newest first)
+		const conversations = await InstagramConversation.find(
+			{
+				webhook_owner_id: { $in: accountIds },
+			},
+			{
+				messages: 0, // Exclude messages field
+			}
+		)
+			.sort({ last_time: -1 })
 			.skip(skip)
 			.limit(limitNum)
 			.lean();
