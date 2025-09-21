@@ -420,7 +420,6 @@ const Campaigns: React.FC = () => {
 				) : (
 					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-6">
 						{state.campaigns.map((campaign) => {
-							const analytics = state.campaignAnalytics[campaign.id];
 							const PlatformIcon = getPlatformIcon(campaign.platform);
 
 							return (
