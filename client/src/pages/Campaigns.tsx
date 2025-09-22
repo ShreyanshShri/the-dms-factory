@@ -44,7 +44,7 @@ const Campaigns: React.FC = () => {
 		error: null,
 	});
 
-	const { getSubscriptionStatus, user } = useAuth();
+	const { hasActiveSubscription, user } = useAuth();
 
 	useEffect(() => {
 		console.log("state", state);
@@ -56,7 +56,7 @@ const Campaigns: React.FC = () => {
 	const [updatingCampaignStatus, setUpdatingCampaignStatus] = useState(false);
 
 	useEffect(() => {
-		if (getSubscriptionStatus() !== "active") {
+		if (!hasActiveSubscription()) {
 			setState((prev) => ({
 				...prev,
 				error: "Please purchase a subscription plan to use this feature.",

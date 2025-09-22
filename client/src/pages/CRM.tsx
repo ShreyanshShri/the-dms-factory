@@ -28,9 +28,9 @@ const CRM = () => {
 	const [editingStage, setEditingStage] = useState<any>(null);
 	const [selectedContact, setSelectedContact] = useState<any>(null);
 
-	const { getSubscriptionStatus, user } = useAuth();
+	const { hasActiveSubscription, user } = useAuth();
 	useEffect(() => {
-		if (getSubscriptionStatus() !== "active") {
+		if (!hasActiveSubscription()) {
 			setError("Please purchase a subscription plan to use this feature.");
 			setLoading(false);
 			return;

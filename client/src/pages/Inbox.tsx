@@ -28,7 +28,7 @@ export default function ChatApp() {
 		loadMore,
 	} = usePollingInbox();
 	const alert = useAlert();
-	const { getSubscriptionStatus, getSubscriptionTier, user } = useAuth();
+	const { hasActiveSubscription, getSubscriptionTier, user } = useAuth();
 
 	const [draft, setDraft] = useState("");
 	const [searchTerm, setSearchTerm] = useState("");
@@ -68,11 +68,11 @@ export default function ChatApp() {
 	}, [user]);
 
 	const checkSubscriptionStatus = async () => {
-		const subscriptionStatus = getSubscriptionStatus();
+		const subscriptionStatus = hasActiveSubscription();
 		const subscriptionTier = getSubscriptionTier();
 		if (
 			!(
-				subscriptionStatus === "active" &&
+				subscriptionStatus &&
 				(subscriptionTier === "Premium" || subscriptionTier === "Standard")
 			)
 		) {

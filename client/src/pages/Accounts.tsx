@@ -6,7 +6,7 @@ import { campaignAPI, accountAPI } from "../services/api";
 import { useAuth } from "../contexts/AuthContext";
 
 const Accounts = () => {
-	const { getSubscriptionStatus, user } = useAuth();
+	const { hasActiveSubscription, user } = useAuth();
 	// existing state
 	const [columns, setColumns] = useState<any[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -114,7 +114,7 @@ const Accounts = () => {
 	}, [tab]);
 
 	useEffect(() => {
-		if (getSubscriptionStatus() !== "active") {
+		if (!hasActiveSubscription()) {
 			setError("Please purchase a subscription plan to use this feature.");
 			return;
 		} else setError("");

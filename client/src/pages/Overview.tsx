@@ -44,11 +44,10 @@ const Overview: React.FC = () => {
 		error: null,
 	});
 
-	const { getSubscriptionStatus, user } = useAuth();
+	const { hasActiveSubscription, user } = useAuth();
 
 	useEffect(() => {
-		console.log("Subscription status", getSubscriptionStatus());
-		if (getSubscriptionStatus() !== "active") {
+		if (!hasActiveSubscription()) {
 			console.log("fuck");
 			setState((prev) => ({
 				...prev,
