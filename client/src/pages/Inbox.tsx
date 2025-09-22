@@ -6,6 +6,7 @@ import usePollingInbox from "../hooks/usePollingInbox";
 import { chat } from "../services/chat";
 import { useAlert } from "../contexts/AlertContext";
 import { useSearchParams } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function ChatApp() {
 	const {
@@ -27,6 +28,7 @@ export default function ChatApp() {
 		loadMore,
 	} = usePollingInbox();
 	const alert = useAlert();
+	const { getSubscriptionStatus, getSubscriptionTier, user } = useAuth();
 
 	const [draft, setDraft] = useState("");
 	const [searchTerm, setSearchTerm] = useState("");
@@ -36,6 +38,7 @@ export default function ChatApp() {
 	const [tagsSettingsOpen, setTagsSettingsOpen] = useState(false);
 	const [interested, setInterested] = useState(false);
 	const [loading_interested, setLoading_interested] = useState(false);
+	const [error, setError] = useState("");
 
 	const messagesEndRef = useRef<any>(null);
 
@@ -55,7 +58,27 @@ export default function ChatApp() {
 				`Successfully connected account ${username} to Unified Inbox`
 			);
 		}
-	}, []);
+		if (loggedIn === "false") {
+			alert.error(
+				`You must have an active subscription to use the Unified Inbox.`
+			);
+		}
+
+		checkSubscriptionStatus();
+	}, [user]);
+
+	const checkSubscriptionStatus = async () => {
+		const subscriptionStatus = getSubscriptionStatus();
+		const subscriptionTier = getSubscriptionTier();
+		if (
+			!(
+				subscriptionStatus === "active" &&
+				(subscriptionTier === "Premium" || subscriptionTier === "Standard")
+			)
+		) {
+			setError("Please purchase a subscription plan to use this feature.");
+		} else setError("");
+	};
 
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -134,6 +157,25 @@ export default function ChatApp() {
 			updateConversationTags(activeConv.id, newTags);
 		}
 	};
+
+	if (error) {
+		return (
+			<div className="accounts-page min-h-96 flex items-center justify-center bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+				<div className="error-container text-center space-y-3">
+					<h2 className="text-2xl font-semibold text-red-600 dark:text-red-500">
+						Error Loading Data
+					</h2>
+					<p className="text-base">{error}</p>
+					<button
+						onClick={checkSubscriptionStatus}
+						className="btn-try-again bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+					>
+						Try Again
+					</button>
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="h-full bg-gray-900 flex">

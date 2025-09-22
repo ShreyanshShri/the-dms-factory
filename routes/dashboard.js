@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
-const { subscribed } = require("../middleware/subscribed");
+// const { subscribed } = require("../middleware/subscribed");
 const { createResponse } = require("../utils/helpers");
 const { HTTP_STATUS } = require("../utils/my_constants");
 
@@ -14,7 +14,6 @@ const Analytics = require("../models/Analytics");
 const Account = require("../models/Account");
 
 router.use(authenticateToken);
-router.use(subscribed);
 
 function dateToFirestoreSeconds(date) {
 	return Math.floor(date.getTime() / 1000);

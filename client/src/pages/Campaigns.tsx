@@ -20,6 +20,7 @@ import type {
 	CampaignAnalytics,
 } from "../types/dashboard";
 import { Link } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 interface CampaignsState {
 	campaigns: CampaignData[];
@@ -43,6 +44,8 @@ const Campaigns: React.FC = () => {
 		error: null,
 	});
 
+	const { getSubscriptionStatus, user } = useAuth();
+
 	useEffect(() => {
 		console.log("state", state);
 	}, [state]);
@@ -53,12 +56,20 @@ const Campaigns: React.FC = () => {
 	const [updatingCampaignStatus, setUpdatingCampaignStatus] = useState(false);
 
 	useEffect(() => {
+		if (getSubscriptionStatus() !== "active") {
+			setState((prev) => ({
+				...prev,
+				error: "Please purchase a subscription plan to use this feature.",
+				loading: false,
+			}));
+			return;
+		}
 		fetchCampaignsData();
 
 		// Set up polling for real-time updates every 30 seconds
-		const interval = setInterval(fetchCampaignsData, 30000);
-		return () => clearInterval(interval);
-	}, []);
+		// const interval = setInterval(fetchCampaignsData, 30000);
+		// return () => clearInterval(interval);
+	}, [user]);
 
 	const fetchCampaignsData = async (): Promise<void> => {
 		try {
@@ -266,6 +277,15 @@ const Campaigns: React.FC = () => {
 		}
 	};
 
+	const handleRetry = async () => {
+		setState((prev) => ({
+			...prev,
+			error: null,
+			loading: true,
+		}));
+		await fetchCampaignsData();
+	};
+
 	if (state.loading) {
 		return (
 			<div className="flex justify-center items-center h-64">
@@ -281,14 +301,17 @@ const Campaigns: React.FC = () => {
 
 	if (state.error) {
 		return (
-			<div className="flex justify-center items-center h-64">
-				<div className="text-center">
-					<p className="text-red-600 dark:text-red-400 mb-4">{state.error}</p>
+			<div className="accounts-page min-h-96 flex items-center justify-center bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+				<div className="error-container text-center space-y-3">
+					<h2 className="text-2xl font-semibold text-red-600 dark:text-red-500">
+						Error Loading Data
+					</h2>
+					<p className="text-base">{state.error}</p>
 					<button
-						onClick={fetchCampaignsData}
-						className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+						onClick={handleRetry}
+						className="btn-try-again bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
 					>
-						Retry
+						Try Again
 					</button>
 				</div>
 			</div>
@@ -564,7 +587,7 @@ const Campaigns: React.FC = () => {
 											to={`/dashboard/campaign-edit/${campaign.id}`}
 											className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
 										>
-											<Edit className="w-4 h-4" />
+											<Edit className="w-4" />
 										</Link>
 										<button
 											onClick={() =>

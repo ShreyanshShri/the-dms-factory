@@ -3,6 +3,7 @@ import { TrendingUp, Users, Megaphone, MessageSquare } from "lucide-react";
 import MetricCard from "../components/MetricCard";
 import PerformanceChart from "../components/PerformanceChart";
 import { dashboardAPI } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 import type {
 	DashboardStats,
 	PerformanceData,
@@ -43,14 +44,25 @@ const Overview: React.FC = () => {
 		error: null,
 	});
 
+	const { getSubscriptionStatus, user } = useAuth();
+
 	useEffect(() => {
-		console.log("Fetching dashboard data... from useeffect");
+		console.log("Subscription status", getSubscriptionStatus());
+		if (getSubscriptionStatus() !== "active") {
+			console.log("fuck");
+			setState((prev) => ({
+				...prev,
+				error: "Please purchase a subscription plan to use this feature.",
+				loading: false,
+			}));
+			return;
+		}
 		fetchDashboardData();
 
 		// Set up polling for real-time updates every 30 seconds
 		// const interval = setInterval(fetchDashboardData, 30000);
 		// return () => clearInterval(interval);
-	}, []);
+	}, [user]);
 
 	const fetchDashboardData = async (): Promise<void> => {
 		try {
@@ -86,12 +98,6 @@ const Overview: React.FC = () => {
 				error.response.data.message === "Not subscribed or subscription expired"
 			) {
 				console.log("Not subscribed or subscription expired");
-				setState((prev) => ({
-					...prev,
-					error:
-						"You are not subscribed to any plan. Please subscribe to a plan to access this feature.",
-					loading: false,
-				}));
 				return;
 			}
 			console.error("Error fetching dashboard data:", error);
@@ -123,14 +129,17 @@ const Overview: React.FC = () => {
 
 	if (state.error) {
 		return (
-			<div className="flex justify-center items-center h-64">
-				<div className="text-center">
-					<p className="text-red-600 dark:text-red-400 mb-4">{state.error}</p>
+			<div className="accounts-page min-h-96 flex items-center justify-center bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+				<div className="error-container text-center space-y-3">
+					<h2 className="text-2xl font-semibold text-red-600 dark:text-red-500">
+						Error Loading Data
+					</h2>
+					<p className="text-base">{state.error}</p>
 					<button
 						onClick={handleRetry}
-						className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+						className="btn-try-again bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
 					>
-						Retry
+						Try Again
 					</button>
 				</div>
 			</div>

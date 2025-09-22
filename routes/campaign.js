@@ -11,11 +11,13 @@ const RateService = require("../services/rateService");
 const Analytics = require("../models/Analytics");
 const Account = require("../models/Account");
 
-const { subscribed } = require("../middleware/subscribed");
+const {
+	isSubscribed,
+	optionalSubscription,
+} = require("../middleware/subscribed");
 const { authenticateToken } = require("../middleware/auth");
 
 router.use(authenticateToken);
-router.use(subscribed);
 
 function toFirestoreTimestamp(dateInput) {
 	const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
@@ -25,7 +27,7 @@ function toFirestoreTimestamp(dateInput) {
 	};
 }
 
-router.post("/create", async (req, res) => {
+router.post("/create", isSubscribed, async (req, res) => {
 	try {
 		const {
 			name,
@@ -673,7 +675,7 @@ router.get("/campaign-status", async (req, res) => {
 });
 
 // GET /api/v1/campaign/fetch-leads - Get leads for processing
-router.get("/fetch-leads", async (req, res) => {
+router.get("/fetch-leads", optionalSubscription, async (req, res) => {
 	try {
 		const { campaignID, accountId } = req.query;
 		if (!campaignID || !accountId) {
@@ -700,6 +702,45 @@ router.get("/fetch-leads", async (req, res) => {
 				batchSize: 0,
 				message: "Campaign is not within working hours",
 			});
+		}
+
+		if (req.user.subscription.status === "trial") {
+			// get analytics count
+			const campaignIds = await Campaign.distinct("_id", {
+				userId: req.user.uid,
+			});
+
+			// Simplified date range
+			const now = new Date();
+			const startOfDay = new Date(
+				now.getFullYear(),
+				now.getMonth(),
+				now.getDate()
+			);
+			const endOfDay = new Date(
+				now.getFullYear(),
+				now.getMonth(),
+				now.getDate() + 1
+			);
+
+			const analyticsCount = await Analytics.countDocuments({
+				status: "initialdmsent",
+				campaignID: { $in: campaignIds },
+				"createdAt._seconds": {
+					$gte: Math.floor(startOfDay.getTime() / 1000),
+					$lt: Math.floor(endOfDay.getTime() / 1000),
+				},
+			});
+
+			if (analyticsCount >= 50) {
+				return res.status(200).json({
+					success: true,
+					leads: [],
+					batchSize: 0,
+					message:
+						"Daily free quota exceeded. Upgrade to paid tier to continue.",
+				});
+			}
 		}
 
 		const rateInfo = await RateService.getRateLimitInfo(

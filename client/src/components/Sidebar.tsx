@@ -8,8 +8,6 @@ import {
 	Settings,
 	Wrench,
 	X,
-	ChevronDown,
-	ChevronUp,
 	Phone,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -24,7 +22,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 	const navigate = useNavigate();
 	const { user } = useAuth();
 
-	const [isStatsExpanded, setIsStatsExpanded] = useState(true);
+	const [isStatsExpanded, _setIsStatsExpanded] = useState(true);
 
 	const menuItems = [
 		{ path: "/dashboard", icon: LayoutDashboard, label: "Overview" },
@@ -107,7 +105,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 
 				{/* Quick Stats - Collapsible on mobile */}
 				<div className="px-1.5 py-2 border-t border-gray-200/60 dark:border-white/10">
-					<button
+					{/* <button
 						onClick={() => setIsStatsExpanded(!isStatsExpanded)}
 						className="flex items-center justify-between w-full mb-1.5 px-1 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider lg:hidden"
 					>
@@ -117,7 +115,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 						) : (
 							<ChevronDown className="h-2 w-2" />
 						)}
-					</button>
+					</button> */}
 
 					<div
 						className={`space-y-1 transition-all duration-300 ${

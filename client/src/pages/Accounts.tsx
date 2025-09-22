@@ -3,8 +3,10 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Link } from "react-router-dom";
 import TabSwitcher from "../components/TabSwitcher";
 import { campaignAPI, accountAPI } from "../services/api";
+import { useAuth } from "../contexts/AuthContext";
 
 const Accounts = () => {
+	const { getSubscriptionStatus, user } = useAuth();
 	// existing state
 	const [columns, setColumns] = useState<any[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -112,8 +114,12 @@ const Accounts = () => {
 	}, [tab]);
 
 	useEffect(() => {
+		if (getSubscriptionStatus() !== "active") {
+			setError("Please purchase a subscription plan to use this feature.");
+			return;
+		} else setError("");
 		fetchData();
-	}, []);
+	}, [user]);
 
 	const fetchData = async () => {
 		try {
@@ -580,7 +586,7 @@ const Accounts = () => {
 
 	if (error)
 		return (
-			<div className="accounts-page min-h-screen flex items-center justify-center bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+			<div className="accounts-page min-h-96 flex items-center justify-center bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
 				<div className="error-container text-center space-y-3">
 					<h2 className="text-2xl font-semibold text-red-600 dark:text-red-500">
 						Error Loading Data

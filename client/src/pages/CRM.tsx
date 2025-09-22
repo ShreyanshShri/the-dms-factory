@@ -16,6 +16,8 @@ import {
 	Search,
 } from "lucide-react";
 import axiosInstance from "../services/axiosInstance";
+import { useAuth } from "../contexts/AuthContext";
+// import {getS} from "../contexts/AuthContext";
 
 const CRM = () => {
 	const [pipeline, setPipeline] = useState<any>(null);
@@ -26,9 +28,15 @@ const CRM = () => {
 	const [editingStage, setEditingStage] = useState<any>(null);
 	const [selectedContact, setSelectedContact] = useState<any>(null);
 
+	const { getSubscriptionStatus, user } = useAuth();
 	useEffect(() => {
+		if (getSubscriptionStatus() !== "active") {
+			setError("Please purchase a subscription plan to use this feature.");
+			setLoading(false);
+			return;
+		}
 		loadCRMData();
-	}, []);
+	}, [user]);
 
 	// const formatTimestamp = (timestamp: any): string => {
 	// 	if (!timestamp) return "N/A";
@@ -216,6 +224,11 @@ const CRM = () => {
 		return contacts.filter((contact: any) => contact.crm?.stageId === stageId);
 	};
 
+	const handleRetry = () => {
+		setLoading(true);
+		loadCRMData();
+	};
+
 	if (loading) {
 		return (
 			<div className="space-y-6">
@@ -229,22 +242,25 @@ const CRM = () => {
 	if (error) {
 		return (
 			<div className="space-y-6">
-				<div className="mb-6">
+				{/* <div className="mb-6">
 					<h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
 						CRM Pipeline
 					</h1>
 					<p className="text-gray-600 dark:text-gray-400">
 						Manage your sales pipeline and customer relationships
 					</p>
-				</div>
-				<div className="card p-6">
-					<div className="text-center">
-						<div className="text-red-500 text-lg font-medium">{error}</div>
+				</div> */}
+				<div className="accounts-page min-h-96 flex items-center justify-center bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+					<div className="error-container text-center space-y-3">
+						<h2 className="text-2xl font-semibold text-red-600 dark:text-red-500">
+							Error Loading Data
+						</h2>
+						<p className="text-base">{error}</p>
 						<button
-							onClick={loadCRMData}
-							className="mt-4 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg transition-colors"
+							onClick={handleRetry}
+							className="btn-try-again bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
 						>
-							Retry
+							Try Again
 						</button>
 					</div>
 				</div>

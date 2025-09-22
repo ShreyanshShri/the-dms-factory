@@ -17,8 +17,6 @@ const userRoutes = require("./routes/user");
 const crmRoutes = require("./routes/crm");
 const dashboardRoutes = require("./routes/dashboard");
 const billingRoutes = require("./routes/billing");
-const User = require("./models/User");
-const { authenticateToken } = require("./middleware/auth");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const connectDB = require("./config/dbConnect");
 
@@ -99,33 +97,6 @@ app.use("/api/v1/billing", billingRoutes);
 // Health check
 app.get("/health", (req, res) => {
 	res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
-});
-
-// In your auth routes - with auth middleware applied
-app.get("/api/v1/auth/me", authenticateToken, async (req, res) => {
-	try {
-		const user = await User.findOne({ uid: req.user.uid }).lean();
-
-		if (!user) {
-			return res
-				.status(401)
-				.json({ success: false, message: "User not found" });
-		}
-
-		const { password, ...userData } = user;
-
-		res.json({
-			success: true,
-			data: {
-				uid: user.uid,
-				...userData,
-			},
-			message: "User verified successfully",
-		});
-	} catch (error) {
-		console.error("Error verifying user:", error);
-		res.status(401).json({ success: false, message: "Invalid token" });
-	}
 });
 
 if (process.env.NODE_ENV !== "production") {

@@ -3,7 +3,6 @@ const bodyParser = require("body-parser");
 const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
-const { createResponse } = require("../utils/helpers");
 
 const Billing = require("../models/Billing");
 const User = require("../models/User");
@@ -188,8 +187,6 @@ router.post(
 	}
 );
 
-module.exports = router;
-
 const updateSubscription = async (email, updates) => {
 	if (!email) {
 		console.error("❌ No email in webhook event");
@@ -199,10 +196,10 @@ const updateSubscription = async (email, updates) => {
 	try {
 		let user = await User.findOne({ email });
 		if (!user) {
+			console.log("❌ No user found for email:", email);
 			// Create new user
 			user = new User({
 				email,
-				createdAt: new Date(),
 				subscription: {
 					...updates,
 					updatedAt: new Date(),
@@ -224,7 +221,7 @@ const updateSubscription = async (email, updates) => {
 			...cleanUpdates,
 			updatedAt: new Date(),
 		};
-
+		console.log("User: ", user);
 		await user.save();
 		console.log(`✅ Updated user ${email}:`, user.subscription);
 		return user._id;

@@ -14,6 +14,13 @@ const {
 const Lead = require("../models/Lead");
 const Campaign = require("../models/Campaign");
 const Analytics = require("../models/Analytics");
+const User = require("../models/User");
+
+const {
+	isSubscribed,
+	requireTier,
+	optionalSubscription,
+} = require("../middleware/subscribed");
 
 function toFirestoreTimestamp(dateInput) {
 	const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
@@ -24,20 +31,26 @@ function toFirestoreTimestamp(dateInput) {
 }
 
 // Login route
-router.get("/login", authenticateToken, (req, res) => {
-	const scopes = "instagram_business_basic,instagram_business_manage_messages";
-	const meta = JSON.stringify({ uid: req.user.uid });
+router.get(
+	"/login",
+	authenticateToken,
+	requireTier(["Standard", "Premium"]),
+	(req, res) => {
+		const scopes =
+			"instagram_business_basic,instagram_business_manage_messages";
+		const meta = JSON.stringify({ uid: req.user.uid });
 
-	const authURL =
-		`https://api.instagram.com/oauth/authorize` +
-		`?client_id=${IG_APP_ID}` +
-		`&redirect_uri=${encodeURIComponent(IG_LOGIN_REDIRECT_URI)}` +
-		`&scope=${scopes}` +
-		`&response_type=code` +
-		`&state=${encodeURIComponent(meta)}`;
+		const authURL =
+			`https://api.instagram.com/oauth/authorize` +
+			`?client_id=${IG_APP_ID}` +
+			`&redirect_uri=${encodeURIComponent(IG_LOGIN_REDIRECT_URI)}` +
+			`&scope=${scopes}` +
+			`&response_type=code` +
+			`&state=${encodeURIComponent(meta)}`;
 
-	res.json({ authURL });
-});
+		res.json({ authURL });
+	}
+);
 
 // OAuth callback route
 router.get("/callback", async (req, res) => {
@@ -68,6 +81,21 @@ router.get("/callback", async (req, res) => {
 			},
 		});
 		const accountInfo = accountInfoRes.data;
+
+		const user = await User.findOne({ uid: meta.uid }).lean();
+		if (
+			user &&
+			user.subscription?.status !== "active" &&
+			(user.subscription?.tier !== "Premium" ||
+				user.subscription?.tier !== "Standard")
+		) {
+			const redirectURL =
+				process.env.NODE_ENV === "production"
+					? `/dashboard/inbox?loggedIn=false&message=You-must-have-an-active-subscription-to-use-this-feature`
+					: `http://localhost:3000/dashboard/inbox?loggedIn=false&message=You-must-have-an-active-subscription-to-use-this-feature`;
+
+			return res.redirect(redirectURL);
+		}
 
 		if (accountInfo.account_type !== "BUSINESS") {
 			throw new Error(
@@ -388,7 +416,20 @@ router.post("/webhook", async (req, res) => {
 
 				// Schedule webhook if sender is other that business (ie user sent msg)
 				if (sender_id !== business_account_id) {
-					scheduleConversationWebhook(convoKey, business_account_id, sender_id);
+					const user = await User.findOne({
+						uid: accountDoc.user,
+					});
+					if (
+						user &&
+						user.subscription?.status === "active" &&
+						user.subscription?.tier === "Premium"
+					) {
+						scheduleConversationWebhook(
+							convoKey,
+							business_account_id,
+							sender_id
+						);
+					}
 				}
 			}
 		}
@@ -401,94 +442,106 @@ router.post("/webhook", async (req, res) => {
 });
 
 // Get all conversations and accounts for authenticated user (no messages)
-router.get("/all-conversations", authenticateToken, async (req, res) => {
-	try {
-		// Extract pagination parameters from query string
-		const { page = 1, limit = 10 } = req.query;
-		const pageNum = parseInt(page);
-		const limitNum = parseInt(limit);
-		const skip = (pageNum - 1) * limitNum;
+router.get(
+	"/all-conversations",
+	authenticateToken,
+	requireTier(["Standard", "Premium"]),
+	async (req, res) => {
+		try {
+			// Extract pagination parameters from query string
+			const { page = 1, limit = 10 } = req.query;
+			const pageNum = parseInt(page);
+			const limitNum = parseInt(limit);
+			const skip = (pageNum - 1) * limitNum;
 
-		// Get user's Instagram accounts
-		const accounts = await InstagramAccount.find({ user: req.user.uid }).lean();
-		const accountIds = accounts.map((acc) => acc.user_id);
+			// Get user's Instagram accounts
+			const accounts = await InstagramAccount.find({
+				user: req.user.uid,
+			}).lean();
+			const accountIds = accounts.map((acc) => acc.user_id);
 
-		// Get total count for pagination metadata
-		const totalConversations = await InstagramConversation.countDocuments({
-			webhook_owner_id: { $in: accountIds },
-		});
-
-		// Get paginated conversations using $in operator (more efficient than loop)
-		const conversations = await InstagramConversation.find(
-			{
+			// Get total count for pagination metadata
+			const totalConversations = await InstagramConversation.countDocuments({
 				webhook_owner_id: { $in: accountIds },
-			},
-			{
-				messages: 0, // Exclude messages field
-			}
-		)
-			.sort({ last_time: -1 })
-			.skip(skip)
-			.limit(limitNum)
-			.lean();
+			});
 
-		res.json({
-			success: true,
-			accounts,
-			conversations,
-			pagination: {
-				totalItems: totalConversations,
-				currentPage: pageNum,
-				totalPages: Math.ceil(totalConversations / limitNum),
-				pageSize: limitNum,
-				hasNextPage: pageNum < Math.ceil(totalConversations / limitNum),
-				hasPrevPage: pageNum > 1,
-			},
-		});
-	} catch (error) {
-		res.status(500).json({ error: error.message });
+			// Get paginated conversations using $in operator (more efficient than loop)
+			const conversations = await InstagramConversation.find(
+				{
+					webhook_owner_id: { $in: accountIds },
+				},
+				{
+					messages: 0, // Exclude messages field
+				}
+			)
+				.sort({ last_time: -1 })
+				.skip(skip)
+				.limit(limitNum)
+				.lean();
+
+			res.json({
+				success: true,
+				accounts,
+				conversations,
+				pagination: {
+					totalItems: totalConversations,
+					currentPage: pageNum,
+					totalPages: Math.ceil(totalConversations / limitNum),
+					pageSize: limitNum,
+					hasNextPage: pageNum < Math.ceil(totalConversations / limitNum),
+					hasPrevPage: pageNum > 1,
+				},
+			});
+		} catch (error) {
+			res.status(500).json({ error: error.message });
+		}
 	}
-});
+);
 
 // Get paginated messages for a conversation
-router.get("/messages", authenticateToken, async (req, res) => {
-	const { recipient_id, sender_id, limit = 25, page = 1 } = req.query;
-	if (!recipient_id)
-		return res.status(400).json({ error: "Missing recipient_id param" });
-	if (!sender_id)
-		return res.status(400).json({ error: "Missing sender_id param" });
+router.get(
+	"/messages",
+	authenticateToken,
+	requireTier(["Standard", "Premium"]),
+	async (req, res) => {
+		const { recipient_id, sender_id, limit = 25, page = 1 } = req.query;
+		if (!recipient_id)
+			return res.status(400).json({ error: "Missing recipient_id param" });
+		if (!sender_id)
+			return res.status(400).json({ error: "Missing sender_id param" });
 
-	try {
-		const convoKey = [sender_id, recipient_id].sort().join("_");
-		const conversation = await InstagramConversation.findById(convoKey);
+		try {
+			const convoKey = [sender_id, recipient_id].sort().join("_");
+			const conversation = await InstagramConversation.findById(convoKey);
 
-		if (!conversation) {
-			return res.status(404).json({ error: "Conversation not found" });
+			if (!conversation) {
+				return res.status(404).json({ error: "Conversation not found" });
+			}
+
+			// Reset unread count
+			conversation.unread_count = 0;
+			await conversation.save();
+
+			// Pagination logic
+			const startIndex = (page - 1) * limit;
+			const paginatedMessages = conversation.messages
+				.sort((a, b) => a.timestamp - b.timestamp)
+				.slice(startIndex, startIndex + Number(limit));
+
+			res.json({
+				success: true,
+				messages: paginatedMessages,
+				pagination: {
+					limit: Number(limit),
+					page: Number(page),
+					total: conversation.messages.length,
+				},
+			});
+		} catch (error) {
+			res.status(500).json({ error: error.message });
 		}
-
-		// Reset unread count
-		conversation.unread_count = 0;
-		await conversation.save();
-
-		// Pagination logic
-		const startIndex = (page - 1) * limit;
-		const paginatedMessages = conversation.messages
-			.sort((a, b) => a.timestamp - b.timestamp)
-			.slice(startIndex, startIndex + Number(limit));
-
-		res.json({
-			success: true,
-			messages: paginatedMessages,
-			pagination: {
-				limit: Number(limit),
-				page: Number(page),
-				total: conversation.messages.length,
-			},
-		});
-	} catch (error) {
-		res.status(500).json({ error: error.message });
 	}
-});
+);
 
 // Send a message
 router.post("/send", async (req, res) => {
@@ -522,79 +575,101 @@ router.post("/send", async (req, res) => {
 });
 
 // Set interested state on a conversation
-router.post("/set-interested", authenticateToken, async (req, res) => {
-	try {
-		const { sender_id, recipient_id, state } = req.body;
-		const convoKey = [sender_id, recipient_id].sort().join("_");
-		await InstagramConversation.findByIdAndUpdate(convoKey, {
-			interested: state,
-		});
-		res.json({ success: true });
-	} catch (error) {
-		res.status(500).json({ error: error.message });
+router.post(
+	"/set-interested",
+	authenticateToken,
+	requireTier(["Standard", "Premium"]),
+	async (req, res) => {
+		try {
+			const { sender_id, recipient_id, state } = req.body;
+			const convoKey = [sender_id, recipient_id].sort().join("_");
+			await InstagramConversation.findByIdAndUpdate(convoKey, {
+				interested: state,
+			});
+			res.json({ success: true });
+		} catch (error) {
+			res.status(500).json({ error: error.message });
+		}
 	}
-});
+);
 
 // Switch campaign on a conversation
-router.post("/switch-campaign", authenticateToken, async (req, res) => {
-	try {
-		const { sender_id, recipient_id, campaign_id } = req.body;
-		const convoKey = [sender_id, recipient_id].sort().join("_");
+router.post(
+	"/switch-campaign",
+	authenticateToken,
+	requireTier(["Standard", "Premium"]),
+	async (req, res) => {
+		try {
+			const { sender_id, recipient_id, campaign_id } = req.body;
+			const convoKey = [sender_id, recipient_id].sort().join("_");
 
-		const campaign = await Campaign.findById(campaign_id);
-		if (!campaign) {
-			return res
-				.status(404)
-				.json({ success: false, message: "Campaign not found" });
+			const campaign = await Campaign.findById(campaign_id);
+			if (!campaign) {
+				return res
+					.status(404)
+					.json({ success: false, message: "Campaign not found" });
+			}
+
+			await InstagramConversation.findByIdAndUpdate(convoKey, {
+				campaignId: campaign_id,
+				context: campaign.context || "",
+			});
+
+			res.json({ success: true });
+		} catch (error) {
+			res.status(500).json({ error: error.message });
 		}
-
-		await InstagramConversation.findByIdAndUpdate(convoKey, {
-			campaignId: campaign_id,
-			context: campaign.context || "",
-		});
-
-		res.json({ success: true });
-	} catch (error) {
-		res.status(500).json({ error: error.message });
 	}
-});
+);
 
 // Get all available tags for authenticated user's accounts
-router.get("/tags", authenticateToken, async (req, res) => {
-	try {
-		const accounts = await InstagramAccount.find({ user: req.user.uid }).lean();
-		const accountIds = accounts.map((acc) => acc.user_id);
-		if (accountIds.length === 0) return res.json({ success: true, tags: [] });
+router.get(
+	"/tags",
+	authenticateToken,
+	requireTier(["Standard", "Premium"]),
+	async (req, res) => {
+		try {
+			const accounts = await InstagramAccount.find({
+				user: req.user.uid,
+			}).lean();
+			const accountIds = accounts.map((acc) => acc.user_id);
+			if (accountIds.length === 0) return res.json({ success: true, tags: [] });
 
-		const conversations = await InstagramConversation.find({
-			webhook_owner_id: { $in: accountIds },
-		}).lean();
+			const conversations = await InstagramConversation.find({
+				webhook_owner_id: { $in: accountIds },
+			}).lean();
 
-		const allTags = new Set();
-		conversations.forEach((conv) => {
-			(conv.tags || []).forEach((tag) => allTags.add(tag));
-		});
+			const allTags = new Set();
+			conversations.forEach((conv) => {
+				(conv.tags || []).forEach((tag) => allTags.add(tag));
+			});
 
-		res.json({ success: true, tags: Array.from(allTags) });
-	} catch (error) {
-		res.status(500).json({ error: error.message });
+			res.json({ success: true, tags: Array.from(allTags) });
+		} catch (error) {
+			res.status(500).json({ error: error.message });
+		}
 	}
-});
+);
 
 // Add or remove tags on a conversation
-router.post("/tags", authenticateToken, async (req, res) => {
-	try {
-		const { sender_id, recipient_id, tags } = req.body;
-		if (!Array.isArray(tags))
-			return res.status(400).json({ error: "Tags must be an array" });
+router.post(
+	"/tags",
+	authenticateToken,
+	requireTier(["Standard", "Premium"]),
+	async (req, res) => {
+		try {
+			const { sender_id, recipient_id, tags } = req.body;
+			if (!Array.isArray(tags))
+				return res.status(400).json({ error: "Tags must be an array" });
 
-		const convoKey = [sender_id, recipient_id].sort().join("_");
-		await InstagramConversation.findByIdAndUpdate(convoKey, { tags });
-		res.json({ success: true });
-	} catch (error) {
-		res.status(500).json({ error: error.message });
+			const convoKey = [sender_id, recipient_id].sort().join("_");
+			await InstagramConversation.findByIdAndUpdate(convoKey, { tags });
+			res.json({ success: true });
+		} catch (error) {
+			res.status(500).json({ error: error.message });
+		}
 	}
-});
+);
 
 // Get available recipients (users who have messaged us)
 router.get("/recipients/:businessAccountId", async (req, res) => {

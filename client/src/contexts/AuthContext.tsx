@@ -9,20 +9,48 @@ import {
 import { authAPI } from "../services/api";
 
 // ---- Types ----
+export interface FirestoreTimestamp {
+	_seconds: number;
+	_nanoseconds: number;
+}
+
+export interface BillingHistoryItem {
+	event?: string;
+	amount?: number;
+	currency?: string;
+	status?: string;
+	whopPaymentId?: string;
+	processedAt?: Date;
+	metadata?: Record<string, any>;
+}
+
 export interface Subscription {
-	status?: string; // "pending", "active", "trial", "failed", "expired"
+	status?: "pending" | "active" | "trial" | "failed" | "expired" | "cancelled";
 	lastEvent?: string;
 	whopMembershipId?: string;
 	tier?: string;
 	tierValue?: number;
 	planId?: string;
+
+	// Period tracking
+	renewalPeriodStart?: Date;
+	renewalPeriodEnd?: Date;
 	expiresAt?: Date;
-	currentPeriodEnd?: Date;
+
+	// Status flags
 	valid?: boolean;
 	licenseKey?: string;
 	cancelAtPeriodEnd?: boolean;
-	updatedAt?: Date;
+
+	// Metadata and tracking
 	metadata?: Record<string, any>;
+	createdAt?: Date;
+	updatedAt?: Date;
+
+	// Payment tracking
+	lastPaymentDate?: Date;
+	nextBillingDate?: Date;
+	trialEndsAt?: Date;
 }
 
 export interface Notifications {
@@ -46,8 +74,9 @@ export interface User {
 	name?: string;
 	email?: string;
 	role: "admin" | "user" | string;
-	createdAt?: Date;
+	createdAt?: FirestoreTimestamp;
 	subscription?: Subscription;
+	billingHistory?: BillingHistoryItem[];
 	timeZone?: string;
 	notifications?: Notifications;
 	privacy?: Privacy;
@@ -85,9 +114,67 @@ interface AuthContextType extends AuthState {
 	updateSubscription: (subscriptionData: Subscription) => void;
 	hasActiveSubscription: () => boolean;
 	getSubscriptionStatus: () => string;
+	getSubscriptionTier: () => string;
 	isTrialActive: () => boolean;
-	canAccessFeature: (requiredTier?: string) => boolean;
+	canAccessFeature: (requiredTierValue?: number) => boolean;
+	getSubscriptionTimeRemaining: () => number | null;
+	getSubscriptionDaysRemaining: () => number | null;
+	isSubscriptionExpired: () => boolean;
 }
+
+// ---- Helper Functions ----
+const convertFirestoreTimestamp = (timestamp: FirestoreTimestamp): Date => {
+	if (!timestamp || typeof timestamp._seconds !== "number") {
+		return new Date();
+	}
+	return new Date(
+		timestamp._seconds * 1000 + (timestamp._nanoseconds || 0) / 1000000
+	);
+};
+
+const convertDateFields = (obj: any): any => {
+	if (!obj) return obj;
+
+	const converted = { ...obj };
+
+	// Convert createdAt if it's a FirestoreTimestamp
+	if (converted.createdAt && converted.createdAt._seconds) {
+		converted.createdAt = convertFirestoreTimestamp(converted.createdAt);
+	}
+
+	// Convert subscription date fields
+	if (converted.subscription) {
+		const sub = converted.subscription;
+		[
+			"renewalPeriodStart",
+			"renewalPeriodEnd",
+			"expiresAt",
+			"createdAt",
+			"updatedAt",
+			"lastPaymentDate",
+			"nextBillingDate",
+			"trialEndsAt",
+		].forEach((field) => {
+			if (sub[field]) {
+				if (typeof sub[field] === "string") {
+					sub[field] = new Date(sub[field]);
+				} else if (sub[field]._seconds) {
+					sub[field] = convertFirestoreTimestamp(sub[field]);
+				}
+			}
+		});
+	}
+
+	// Convert billing history dates
+	if (converted.billingHistory) {
+		converted.billingHistory = converted.billingHistory.map((item: any) => ({
+			...item,
+			processedAt: item.processedAt ? new Date(item.processedAt) : undefined,
+		}));
+	}
+
+	return converted;
+};
 
 // ---- Reducer ----
 const initialState: AuthState = {
@@ -158,26 +245,31 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
 	const [state, dispatch] = useReducer(authReducer, initialState);
 
+	const transformUserData = (backendData: any): User => {
+		const convertedData = convertDateFields(backendData);
+
+		return {
+			id: convertedData.uid || convertedData.id,
+			uid: convertedData.uid,
+			name: convertedData.name,
+			email: convertedData.email,
+			role: convertedData.role,
+			createdAt: convertedData.createdAt,
+			subscription: convertedData.subscription,
+			billingHistory: convertedData.billingHistory,
+			timeZone: convertedData.timeZone,
+			notifications: convertedData.notifications,
+			privacy: convertedData.privacy,
+		};
+	};
+
 	const login = async (email: string, password: string) => {
 		try {
 			dispatch({ type: "SET_LOADING", payload: true });
 			const response = await authAPI.login(email, password);
 
 			if (response.success) {
-				// Transform backend data to match frontend User interface
-				const userData: User = {
-					id: response.data.uid || response.data.id,
-					uid: response.data.uid,
-					name: response.data.name,
-					email: response.data.email,
-					role: response.data.role,
-					createdAt: response.data.createdAt,
-					subscription: response.data.subscription,
-					timeZone: response.data.timeZone,
-					notifications: response.data.notifications,
-					privacy: response.data.privacy,
-				};
-
+				const userData = transformUserData(response.data);
 				dispatch({ type: "LOGIN_SUCCESS", payload: userData });
 
 				if (response.data.role === "admin") {
@@ -204,20 +296,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 			const response = await authAPI.register(name, email, password);
 
 			if (response.success) {
-				// Transform backend data to match frontend User interface
-				const userData: User = {
-					id: response.data.uid || response.data.id,
-					uid: response.data.uid,
-					name: response.data.name,
-					email: response.data.email,
-					role: response.data.role,
-					createdAt: response.data.createdAt,
-					subscription: response.data.subscription,
-					timeZone: response.data.timeZone,
-					notifications: response.data.notifications,
-					privacy: response.data.privacy,
-				};
-
+				const userData = transformUserData(response.data);
 				dispatch({ type: "LOGIN_SUCCESS", payload: userData });
 				return { success: true };
 			} else {
@@ -256,81 +335,97 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 		dispatch({ type: "UPDATE_SUBSCRIPTION", payload: subscriptionData });
 	}, []);
 
-	// Subscription helper functions
+	// Enhanced subscription helper functions
 	const hasActiveSubscription = useCallback((): boolean => {
 		if (!state.user?.subscription) return false;
 		const sub = state.user.subscription;
-		return sub.status === "active" || sub.status === "trial";
+		return (
+			(sub.status === "active" || sub.status === "trial") && sub.valid !== false
+		);
 	}, [state.user]);
 
 	const getSubscriptionStatus = useCallback((): string => {
 		return state.user?.subscription?.status || "none";
 	}, [state.user]);
 
+	const getSubscriptionTier = useCallback((): string => {
+		return state.user?.subscription?.tier || "none";
+	}, [state.user]);
+
 	const isTrialActive = useCallback((): boolean => {
 		if (!state.user?.subscription) return false;
 		const sub = state.user.subscription;
-		return sub.status === "trial" && sub.valid === true;
+		const now = new Date();
+
+		return (
+			sub.status === "trial" &&
+			sub.valid === true &&
+			(!sub.trialEndsAt || sub.trialEndsAt > now) &&
+			(!sub.expiresAt || sub.expiresAt > now)
+		);
 	}, [state.user]);
 
+	const isSubscriptionExpired = useCallback((): boolean => {
+		if (!state.user?.subscription) return true;
+		const sub = state.user.subscription;
+		const now = new Date();
+
+		// Check various expiration conditions
+		if (sub.status === "expired" || sub.valid === false) return true;
+		if (sub.expiresAt && sub.expiresAt <= now) return true;
+		if (sub.renewalPeriodEnd && sub.renewalPeriodEnd <= now) return true;
+		if (sub.trialEndsAt && sub.trialEndsAt <= now && sub.status === "trial")
+			return true;
+
+		return false;
+	}, [state.user]);
+
+	const getSubscriptionTimeRemaining = useCallback((): number | null => {
+		if (!state.user?.subscription) return null;
+		const sub = state.user.subscription;
+		const now = new Date();
+
+		const expiryDate = sub.expiresAt || sub.renewalPeriodEnd || sub.trialEndsAt;
+		if (!expiryDate) return null;
+
+		const timeRemaining = expiryDate.getTime() - now.getTime();
+		return Math.max(0, timeRemaining);
+	}, [state.user]);
+
+	const getSubscriptionDaysRemaining = useCallback((): number | null => {
+		const timeRemaining = getSubscriptionTimeRemaining();
+		if (timeRemaining === null) return null;
+
+		return Math.max(0, Math.ceil(timeRemaining / (1000 * 60 * 60 * 24)));
+	}, [getSubscriptionTimeRemaining]);
+
 	const canAccessFeature = useCallback(
-		(requiredTier?: string): boolean => {
+		(requiredTierValue?: number): boolean => {
 			if (!state.user?.subscription) return false;
 
 			const sub = state.user.subscription;
 
-			// If no tier required, just check if subscription is active
-			if (!requiredTier) {
-				return hasActiveSubscription();
-			}
+			// Check if subscription is valid and active
+			if (isSubscriptionExpired() || !hasActiveSubscription()) return false;
 
-			// Check if user's tier matches or exceeds required tier
-			if (sub.status === "active" || sub.status === "trial") {
-				return (
-					sub.tier === requiredTier ||
-					(sub.tierValue && sub.tierValue >= getTierValue(requiredTier)) ||
-					false
-				);
-			}
+			// If no tier value required, just check if subscription is active
+			if (!requiredTierValue) return true;
 
-			return false;
+			// Check if user's tier value meets or exceeds required value
+			return (sub.tierValue || 0) >= requiredTierValue;
 		},
-		[state.user, hasActiveSubscription]
+		[state.user, hasActiveSubscription, isSubscriptionExpired]
 	);
-
-	// Helper function to convert tier names to numeric values for comparison
-	const getTierValue = (tier: string): number => {
-		const tierValues: Record<string, number> = {
-			basic: 1,
-			standard: 2,
-			premium: 3,
-			enterprise: 4,
-		};
-		return tierValues[tier.toLowerCase()] || 0;
-	};
 
 	useEffect(() => {
 		const checkAuth = async () => {
 			try {
 				dispatch({ type: "SET_LOADING", payload: true });
 				const response = await authAPI.verifyAuth();
-				console.log("response found", response);
+				console.log("Auth response found", response);
 
 				if (response.success) {
-					// Transform backend data to match frontend User interface
-					const userData: User = {
-						id: response.data.uid || response.data.id,
-						uid: response.data.uid,
-						name: response.data.name,
-						email: response.data.email,
-						role: response.data.role,
-						createdAt: response.data.createdAt,
-						subscription: response.data.subscription,
-						timeZone: response.data.timeZone,
-						notifications: response.data.notifications,
-						privacy: response.data.privacy,
-					};
-
+					const userData = transformUserData(response.data);
 					dispatch({ type: "LOGIN_SUCCESS", payload: userData });
 				} else {
 					dispatch({ type: "SET_LOADING", payload: false });
@@ -354,8 +449,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 		updateSubscription,
 		hasActiveSubscription,
 		getSubscriptionStatus,
+		getSubscriptionTier,
 		isTrialActive,
 		canAccessFeature,
+		getSubscriptionTimeRemaining,
+		getSubscriptionDaysRemaining,
+		isSubscriptionExpired,
 	};
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
