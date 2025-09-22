@@ -264,6 +264,10 @@ router.post("/webhook", async (req, res) => {
 
 				let conv = await InstagramConversation.findById(convoKey).exec();
 
+				const accountDoc = await InstagramAccount.findById(
+					business_account_id
+				).exec();
+
 				if (conv) {
 					await InstagramConversation.findByIdAndUpdate(convoKey, {
 						last_message: msgText,
@@ -279,10 +283,6 @@ router.post("/webhook", async (req, res) => {
 					}
 
 					// no saved convo but is a client initiated convo, continue
-
-					const accountDoc = await InstagramAccount.findById(
-						business_account_id
-					).exec();
 
 					// get sender ig info
 					let business_username = "";
