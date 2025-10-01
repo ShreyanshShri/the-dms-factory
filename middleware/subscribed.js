@@ -33,6 +33,7 @@ const isSubscribed = async (req, res, next) => {
 
 		// Check main expiration date
 		if (subscription.expiresAt && new Date(subscription.expiresAt) < now) {
+			console.log("Reason for expiration: expiresAt");
 			isExpired = true;
 		}
 
@@ -41,6 +42,7 @@ const isSubscribed = async (req, res, next) => {
 			subscription.renewalPeriodEnd &&
 			new Date(subscription.renewalPeriodEnd) < now
 		) {
+			console.log("Reason for expiration: renewalPeriodEnd");
 			isExpired = true;
 		}
 
@@ -50,11 +52,13 @@ const isSubscribed = async (req, res, next) => {
 			new Date(subscription.trialEndsAt) < now &&
 			subscription.status === "trial"
 		) {
+			console.log("Reason for expiration: trialEndsAt");
 			isExpired = true;
 		}
 
 		// Check if subscription is marked as invalid by Whop
 		if (subscription.valid === false) {
+			console.log("Reason for expiration: valid === false");
 			isExpired = true;
 		}
 
@@ -64,7 +68,7 @@ const isSubscribed = async (req, res, next) => {
 			["active", "trial", "pending"].includes(subscription.status)
 		) {
 			needsUpdate = true;
-
+			console.log("Subsciption", subscription);
 			// Update in database
 			const User = require("../models/User"); // Adjust path as needed
 			await User.updateOne(
@@ -83,7 +87,9 @@ const isSubscribed = async (req, res, next) => {
 			subscription.lastEvent = "auto_expired";
 			subscription.updatedAt = now;
 
-			console.log(`🔄 Auto-expired subscription for user: ${user.email}`);
+			console.log(
+				`🔄 Auto-expired subscription for user: ${user.email} from isSubscribed`
+			);
 		}
 
 		// Determine final subscription status
@@ -227,15 +233,35 @@ const optionalSubscription = async (req, res, next) => {
 		// Check if expired (same logic)
 		let isExpired = false;
 
+		// Check main expiration date
+		if (subscription.expiresAt && new Date(subscription.expiresAt) < now) {
+			console.log("Reason for expiration: expiresAt");
+			isExpired = true;
+		}
+
+		// Check renewal period end
 		if (
-			(subscription.expiresAt && new Date(subscription.expiresAt) < now) ||
-			(subscription.renewalPeriodEnd &&
-				new Date(subscription.renewalPeriodEnd) < now) ||
-			(subscription.trialEndsAt &&
-				new Date(subscription.trialEndsAt) < now &&
-				subscription.status === "trial") ||
-			subscription.valid === false
+			subscription.renewalPeriodEnd &&
+			new Date(subscription.renewalPeriodEnd) < now
 		) {
+			console.log("Reason for expiration: renewalPeriodEnd");
+			isExpired = true;
+		}
+
+		// Check trial expiration
+		if (
+			subscription.trialEndsAt &&
+			new Date(subscription.trialEndsAt) < now &&
+			subscription.status === "trial"
+		) {
+			console.log("Reason for expiration: trialEndsAt");
+			isExpired = true;
+		}
+
+		// Check if subscription is marked as invalid by Whop
+		console.log("Subscription: ", subscription);
+		if (subscription.valid === false) {
+			console.log("Reason for expiration: valid === false");
 			isExpired = true;
 		}
 
@@ -244,6 +270,7 @@ const optionalSubscription = async (req, res, next) => {
 			isExpired &&
 			["active", "trial", "pending"].includes(subscription.status)
 		) {
+			console.log("Subscription: ", subscription);
 			const User = require("../models/User");
 			await User.updateOne(
 				{ uid: req.user.uid },
@@ -261,7 +288,9 @@ const optionalSubscription = async (req, res, next) => {
 			subscription.lastEvent = "auto_expired";
 			subscription.updatedAt = now;
 
-			console.log(`🔄 Auto-expired subscription for user: ${req.user.email}`);
+			console.log(
+				`🔄 Auto-expired subscription for user: ${req.user.email} from optionalSubscription`
+			);
 		}
 
 		const finalStatus = isExpired ? "expired" : subscription.status;
