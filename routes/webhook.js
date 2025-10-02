@@ -67,8 +67,16 @@ router.post(
 
 			const type = action.toLowerCase().replace(/\./g, "_");
 			console.log("Received webhook event:", type);
+			console.log("Received webhook data:", data);
 
-			const email = data.user_email || data.email;
+			let email = data.user_email || data.email;
+			console.log("Membership Id", data.id);
+			if (email === undefined || email === null) {
+				const user = await User.findOne({
+					"subscription.whopMembershipId": data.id,
+				});
+				email = user?.email;
+			}
 			const membershipId = data.membership_id || data.id;
 			const tierInfo = TIER_MAPPING[data.plan_id] || {
 				name: "Unknown",
@@ -145,7 +153,7 @@ router.post(
 						valid: data.valid,
 						licenseKey: data.license_key,
 					});
-					await createBillingRecord(email, data, type, tierInfo);
+					// await createBillingRecord(email, data, type, tierInfo);
 					break;
 
 				case "membership_metadata_updated":
@@ -157,7 +165,7 @@ router.post(
 						planId: data.plan_id,
 						valid: data.valid,
 					});
-					await createBillingRecord(email, data, type, tierInfo);
+					// await createBillingRecord(email, data, type, tierInfo);
 					break;
 
 				case "membership_went_invalid":
@@ -170,7 +178,7 @@ router.post(
 						planId: data.plan_id,
 						valid: data.valid,
 					});
-					await createBillingRecord(email, data, type, tierInfo);
+					// await createBillingRecord(email, data, type, tierInfo);
 					break;
 
 				// Add other cases similarly...

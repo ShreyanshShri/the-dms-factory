@@ -12,7 +12,6 @@ export default function ChatApp() {
 	const {
 		accounts,
 		conversations,
-		filteredConversations,
 		messages,
 		activeConv,
 		selectedTags,
@@ -20,19 +19,22 @@ export default function ChatApp() {
 		conversationsLoading,
 		loadingMore,
 		hasMore,
-		setFilteredConversations,
+		searchTerm,
+		selectedAccounts,
+		// setFilteredConversations,
 		setActiveConv,
-		setSelectedTags,
 		updateConversationTags,
 		send,
 		loadMore,
+		setSearchTerm,
+		handleAccountSelect,
+		handleTagSelect,
 	} = usePollingInbox();
 	const alert = useAlert();
 	const { hasActiveSubscription, getSubscriptionTier, user } = useAuth();
 
 	const [draft, setDraft] = useState("");
-	const [searchTerm, setSearchTerm] = useState("");
-	const [selectedAccounts, setSelectedAccounts] = useState<any[]>([]);
+	// const [searchTerm, setSearchTerm] = useState("");
 	const [accountsDropdownOpen, setAccountsDropdownOpen] = useState(false);
 	const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false);
 	const [tagsSettingsOpen, setTagsSettingsOpen] = useState(false);
@@ -88,34 +90,6 @@ export default function ChatApp() {
 		setInterested(activeConv?.interested);
 	}, [activeConv]);
 
-	useEffect(() => {
-		let filtered =
-			selectedAccounts.length > 0
-				? conversations.filter((c: any) =>
-						selectedAccounts.includes(c.businessAccount.id)
-				  )
-				: conversations;
-
-		// Apply tag filter
-		if (selectedTags.length > 0) {
-			filtered = filtered.filter((conv) => {
-				const convTags = conv.tags || [];
-				return selectedTags.some((tag) => convTags.includes(tag));
-			});
-		}
-
-		// Apply search filter
-		if (searchTerm) {
-			filtered = filtered.filter((c) =>
-				c?.clientAccount?.username
-					?.toLowerCase()
-					.includes(searchTerm.toLowerCase())
-			);
-		}
-
-		setFilteredConversations(filtered);
-	}, [selectedAccounts, conversations, selectedTags, searchTerm]);
-
 	const sendMsg = () => {
 		send(draft);
 		setDraft("");
@@ -138,18 +112,6 @@ export default function ChatApp() {
 			console.error(err);
 		}
 		setLoading_interested(false);
-	};
-
-	const handleSelect = (id: any) => {
-		setSelectedAccounts((prev) =>
-			prev.includes(id) ? prev.filter((acc) => acc !== id) : [...prev, id]
-		);
-	};
-
-	const handleTagSelect = (tag: any) => {
-		setSelectedTags((prev) =>
-			prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-		);
 	};
 
 	const handleTagsUpdate = (newTags: any) => {
@@ -192,7 +154,7 @@ export default function ChatApp() {
 							placeholder="Search conversations..."
 							value={searchTerm}
 							onChange={handleSearch}
-							className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+							className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
 						/>
 					</div>
 
@@ -202,7 +164,7 @@ export default function ChatApp() {
 						<div className="relative">
 							<button
 								onClick={() => setAccountsDropdownOpen(!accountsDropdownOpen)}
-								className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-left text-white hover:bg-gray-600 focus:ring-2 focus:ring-blue-500"
+								className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-left text-white hover:bg-gray-600"
 							>
 								Accounts ({selectedAccounts.length})
 							</button>
@@ -215,9 +177,9 @@ export default function ChatApp() {
 										>
 											<input
 												type="checkbox"
-												checked={selectedAccounts.includes(acc.id)}
-												onChange={() => handleSelect(acc.id)}
-												className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-500 bg-gray-700 rounded"
+												checked={selectedAccounts.includes(acc._id)}
+												onChange={() => handleAccountSelect(acc._id)}
+												className="h-4 w-4 text-blue-600 border-gray-500 bg-gray-700 rounded"
 											/>
 											<span className="ml-2 text-sm text-gray-300">
 												{acc.username}
@@ -232,7 +194,7 @@ export default function ChatApp() {
 						<div className="relative">
 							<button
 								onClick={() => setSettingsDropdownOpen(!settingsDropdownOpen)}
-								className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-left text-white hover:bg-gray-600 focus:ring-2 focus:ring-blue-500"
+								className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-left text-white hover:bg-gray-600"
 							>
 								Tags ({selectedTags.length})
 							</button>
@@ -247,7 +209,7 @@ export default function ChatApp() {
 												type="checkbox"
 												checked={selectedTags.includes(tag)}
 												onChange={() => handleTagSelect(tag)}
-												className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-500 bg-gray-700 rounded"
+												className="h-4 w-4 text-blue-600 border-gray-500 bg-gray-700 rounded"
 											/>
 											<span className="ml-2 text-sm text-gray-300">{tag}</span>
 										</label>
@@ -270,7 +232,7 @@ export default function ChatApp() {
 						</div>
 					) : (
 						<>
-							{filteredConversations.map((conv) => (
+							{conversations.map((conv) => (
 								<div
 									key={conv.id}
 									onClick={() => setActiveConv(conv)}
@@ -424,7 +386,7 @@ export default function ChatApp() {
 									onChange={(e) => setDraft(e.target.value)}
 									onKeyPress={(e) => e.key === "Enter" && sendMsg()}
 									placeholder="Type a message..."
-									className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+									className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400"
 								/>
 								<button
 									onClick={sendMsg}

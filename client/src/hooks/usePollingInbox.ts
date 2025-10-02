@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { chat } from "../services/chat";
 import useInfiniteConversations from "./useInfiniteConversations";
 
-export default function usePollingInbox(interval = 60000) {
-	// Use the new infinite conversations hook
+export default function usePollingInbox() {
 	const {
 		conversations: allConversations,
 		accounts,
@@ -12,16 +11,101 @@ export default function usePollingInbox(interval = 60000) {
 		hasMore,
 		loadMore,
 		refresh: refreshConversations,
+		applyFilters,
+		filters,
 	} = useInfiniteConversations();
 
 	// Existing state
 	const [activeAccount, setActiveAccount] = useState<any>(null);
-	const [filteredConversations, setFilteredConversations] = useState<any[]>([]);
 	const [activeConv, setActiveConv] = useState<any>(null);
 	const [messages, setMessages] = useState<any[]>([]);
+
 	const [selectedTags, setSelectedTags] = useState<any[]>([]);
 	const [allTags, setAllTags] = useState<any[]>([]);
 
+	// Search state
+	const [searchTerm, setSearchTerm] = useState("");
+	const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+	const [selectedAccounts, setSelectedAccounts] = useState<any[]>([]);
+
+	const handleAccountSelect = useCallback((id: any) => {
+		setSelectedAccounts((prev) =>
+			prev.includes(id) ? prev.filter((acc) => acc !== id) : [...prev, id]
+		);
+	}, []);
+
+	const handleTagSelect = useCallback((tag: any) => {
+		setSelectedTags((prev) =>
+			prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+		);
+	}, []);
+
+	// Debounce search term
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			setDebouncedSearchTerm(searchTerm);
+		}, 500);
+
+		return () => clearTimeout(timer);
+	}, [searchTerm]);
+
+	useEffect(() => {
+		const newFilters = {
+			instagram_id: filters.instagram_id,
+			selectedTags: selectedTags.length > 0 ? selectedTags : undefined,
+			search: filters.search,
+			selectedAccounts:
+				selectedAccounts.length > 0 ? selectedAccounts : undefined,
+		};
+
+		applyFilters(newFilters);
+	}, [selectedAccounts]);
+
+	useEffect(() => {
+		const newFilters = {
+			instagram_id: filters.instagram_id,
+			search: filters.search,
+			selectedAccounts:
+				selectedAccounts.length > 0 ? selectedAccounts : undefined,
+			selectedTags: selectedTags.length > 0 ? selectedTags : undefined,
+		};
+		applyFilters(newFilters);
+	}, [selectedTags]);
+
+	// Apply search when debounced term changes - FIXED: removed filters dependency
+	useEffect(() => {
+		if (
+			debouncedSearchTerm === "" &&
+			(!filters.search || filters.search === "")
+		) {
+			// Both are empty, don't trigger another call
+			return;
+		}
+
+		const newFilters = {
+			instagram_id: filters.instagram_id,
+			selectedTags: selectedTags.length > 0 ? selectedTags : undefined,
+			search: debouncedSearchTerm || undefined,
+		};
+
+		// Only apply if there's actually a change
+		if (newFilters.search !== filters.search) {
+			applyFilters(newFilters);
+		}
+	}, [debouncedSearchTerm]); // Only depend on debouncedSearchTerm
+
+	// Search handler for input
+	const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+		setSearchTerm(e.target.value);
+	}, []);
+
+	// Clear search
+	const clearSearch = useCallback(() => {
+		setSearchTerm("");
+		setDebouncedSearchTerm("");
+	}, []);
+
+	// Rest of your existing code remains the same...
 	// Load all available tags
 	useEffect(() => {
 		chat
@@ -35,10 +119,6 @@ export default function usePollingInbox(interval = 60000) {
 	// Update conversations when activeConv changes
 	useEffect(() => {
 		if (!activeConv) return;
-
-		// Note: We can't directly modify the conversations from infinite hook
-		// The unread count reset would need to be handled differently
-		// For now, we'll just load messages without modifying conversations state
 
 		const load = () => {
 			chat
@@ -54,27 +134,7 @@ export default function usePollingInbox(interval = 60000) {
 		};
 
 		load();
-		const id = setInterval(load, interval);
-		return () => clearInterval(id);
-	}, [activeConv, interval]);
-
-	// Filter conversations by tags
-	const applyTagFilter = useCallback(() => {
-		let filtered = allConversations;
-
-		if (selectedTags.length > 0) {
-			filtered = allConversations.filter((conv) => {
-				const convTags = conv.tags || [];
-				return selectedTags.some((tag) => convTags.includes(tag));
-			});
-		}
-
-		setFilteredConversations(filtered);
-	}, [allConversations, selectedTags]);
-
-	useEffect(() => {
-		applyTagFilter();
-	}, [applyTagFilter]);
+	}, [activeConv]);
 
 	// Send message function
 	const send = useCallback(
@@ -97,6 +157,7 @@ export default function usePollingInbox(interval = 60000) {
 					activeConv.clientAccount.id,
 					text
 				);
+
 				setMessages((prev) =>
 					prev.map((m) => (m === optimisticMsg ? { ...m, pending: false } : m))
 				);
@@ -121,10 +182,7 @@ export default function usePollingInbox(interval = 60000) {
 
 	const updateConversationTags = useCallback(
 		(conversationId: any, newTags: any) => {
-			// Since we can't directly modify the conversations from infinite hook,
-			// we'll refresh the conversations to get the updated tags
 			refreshConversations();
-
 			if (activeConv && activeConv.id === conversationId) {
 				setActiveConv((prev: any) => ({ ...prev, tags: newTags }));
 			}
@@ -132,11 +190,18 @@ export default function usePollingInbox(interval = 60000) {
 		[activeConv, refreshConversations]
 	);
 
+	const clearAllFilters = useCallback(() => {
+		setSearchTerm("");
+		setDebouncedSearchTerm("");
+		setSelectedAccounts([]);
+		setSelectedTags([]);
+		applyFilters({});
+	}, [applyFilters]);
+
 	return {
 		// State
 		accounts,
 		conversations: allConversations,
-		filteredConversations,
 		messages,
 		activeAccount,
 		activeConv,
@@ -146,16 +211,29 @@ export default function usePollingInbox(interval = 60000) {
 		loadingMore,
 		hasMore,
 
-		// Setters & helpers
-		setFilteredConversations,
+		// Search state
+		searchTerm,
+		debouncedSearchTerm,
+		selectedAccounts,
+
+		// Setters
 		setActiveAccount,
 		setActiveConv,
 		setSelectedTags,
 		updateConversationTags,
+		setSearchTerm,
+
+		// Search actions
+		handleSearch,
+		clearSearch,
+		handleAccountSelect,
+		handleTagSelect,
 
 		// Actions
 		send,
 		loadMore,
 		refreshConversations,
+		applyFilters,
+		clearAllFilters,
 	};
 }

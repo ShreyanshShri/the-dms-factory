@@ -5,8 +5,29 @@ export const chat = {
 	/* IG OAuth */
 	login: () => axiosInstance.get("/chats/login"),
 
-	getAllConversations: (page = 1, limit = 20) =>
-		axiosInstance.get(`/chats/all-conversations?page=${page}&limit=${limit}`),
+	getAllConversations: (page = 1, limit = 20, filters = {}) => {
+		const params = new URLSearchParams({
+			page: page.toString(),
+			limit: limit.toString(),
+		});
+
+		// Add all non-empty filters
+		Object.entries(filters).forEach(([key, value]) => {
+			if (value && value.toString().trim()) {
+				if (
+					(key === "selectedAccounts" || key === "selectedTags") &&
+					Array.isArray(value)
+				) {
+					// Convert array to comma-separated string
+					params.append(key, value.join(","));
+				} else {
+					params.append(key, value.toString().trim());
+				}
+			}
+		});
+
+		return axiosInstance.get(`/chats/all-conversations?${params.toString()}`);
+	},
 
 	/* List IG accounts that belong to the logged-in user */
 	accounts: () => axiosInstance.get("/chats/accounts"),

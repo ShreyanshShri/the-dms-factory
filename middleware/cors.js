@@ -12,7 +12,10 @@ const setupCors = (app) => {
 					"https://running.colddmspro.com",
 					"https://the-dms-factory.onrender.com",
 					"https://thebuildfluence.com",
-					"http://localhost:5000", // for testing
+					"http://localhost:5000", // backend
+					"file://", // Electron file protocol
+					"app://./index.html", // Electron app protocol
+					null, // Electron requests without origin
 			  ]
 			: [
 					process.env.EXTENSION_URL ||
@@ -23,27 +26,30 @@ const setupCors = (app) => {
 					"https://running.colddmspro.com",
 					"https://the-dms-factory.onrender.com",
 					"https://thebuildfluence.com",
-					"http://localhost:3000",
-					"http://localhost:5000", // for testing
+					"http://localhost:5173", // Vite dev frontend
+					"http://localhost:5000", // backend
+					"http://localhost:3000", // backend
+					"file://", // Electron file protocol
+					"app://./index.html", // Electron app protocol
+					null, // Electron requests without origin
 			  ];
 
 	const corsOptions = {
 		origin: function (origin, callback) {
-			// console.log("CORS check for origin:", origin);
-			if (!origin || allowedOrigins.includes(origin)) {
+			if (!origin || origin === "null" || allowedOrigins.includes(origin)) {
 				callback(null, true);
 			} else {
-				console.log("❌ CORS blocked:", origin);
+				console.error("❌ Blocked by CORS:", origin);
 				callback(new Error("Not allowed by CORS"));
 			}
 		},
 		credentials: true,
-		methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+		methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
 		allowedHeaders: ["Content-Type", "Authorization"],
-		exposedHeaders: ["Set-Cookie"],
 	};
 
 	app.use(cors(corsOptions));
+	app.options("*", cors(corsOptions)); // Handle preflight
 };
 
 module.exports = { setupCors };

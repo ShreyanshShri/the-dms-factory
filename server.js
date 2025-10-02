@@ -17,6 +17,7 @@ const userRoutes = require("./routes/user");
 const crmRoutes = require("./routes/crm");
 const dashboardRoutes = require("./routes/dashboard");
 const billingRoutes = require("./routes/billing");
+const adsPowerAutomationDashboardRoutes = require("./routes/adspower_automation_dashboard");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const connectDB = require("./config/dbConnect");
 
@@ -92,6 +93,10 @@ app.use("/api/v1/chats", chatRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/crm", crmRoutes);
 app.use("/api/v1/dashboard", dashboardRoutes);
+app.use(
+	"/api/v1/adspower_automation_dashboard",
+	adsPowerAutomationDashboardRoutes
+);
 app.use("/api/v1/billing", billingRoutes);
 
 // Health check
@@ -131,7 +136,7 @@ let server;
 const PORT = process.env.PORT || 5000;
 if (process.env.NODE_ENV !== "test") {
 	server = app.listen(PORT, "0.0.0.0", () => {
-		console.log(`ColdDMs Pro Backend running on port ${PORT}`);
+		console.log(`Buildfluence Backend running on port ${PORT}`);
 	});
 }
 

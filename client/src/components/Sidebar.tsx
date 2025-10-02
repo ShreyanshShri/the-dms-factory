@@ -31,18 +31,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 		{ path: "/dashboard/crm", icon: Megaphone, label: "CRM" },
 		// { path: "/dashboard/messages", icon: MessageSquare, label: "Messages" },
 		{ path: "/dashboard/inbox", icon: MessageSquare, label: "Unified Inbox" },
-		{ path: "/dashboard/tools", icon: Wrench, label: "Tools" },
+		// { path: "/dashboard/tools", icon: Wrench, label: "Tools" },
 		{ path: "/dashboard/extension", icon: Wrench, label: "Extension" },
 		{ path: "/dashboard/settings", icon: Settings, label: "Settings" },
 		{ path: "/contact", icon: Phone, label: "Contact Us" },
-		{
-			path: "/dashboard/payment-plans",
-			icon: Settings,
-			label:
-				user?.subscription?.status === "active"
-					? "Manage Subsciption"
-					: "Payment Plans",
-		},
+		// {
+		// 	path:
+		// 		user?.subscription?.status === "active" ||
+		// 		user?.subscription?.status === "trial"
+		// 			? "/dashboard/manage-subscription"
+		// 			: "/dashboard/payment-plans",
+		// 	icon: Settings,
+		// 	label:
+		// 		user?.subscription?.status === "active" ||
+		// 		user?.subscription?.status === "trial"
+		// 			? "Manage Subsciption"
+		// 			: "Payment Plans",
+		// },
 	];
 
 	return (

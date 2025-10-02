@@ -448,32 +448,67 @@ router.get(
 	requireTier(["Standard", "Premium"]),
 	async (req, res) => {
 		try {
-			// Extract pagination parameters from query string
-			const { page = 1, limit = 10 } = req.query;
+			// Extract pagination params and filter params including search and selected accounts
+			const {
+				page = 1,
+				limit = 10,
+				instagram_id,
+				selectedTags,
+				search,
+				selectedAccounts,
+			} = req.query;
+
 			const pageNum = parseInt(page);
 			const limitNum = parseInt(limit);
 			const skip = (pageNum - 1) * limitNum;
 
-			// Get user's Instagram accounts
+			// Get authenticated user's Instagram accounts
 			const accounts = await InstagramAccount.find({
 				user: req.user.uid,
 			}).lean();
+
+			// Get list of Instagram business user IDs the user owns
 			const accountIds = accounts.map((acc) => acc.user_id);
 
-			// Get total count for pagination metadata
-			const totalConversations = await InstagramConversation.countDocuments({
+			// Build base query filter to only include conversations related to user's accounts
+			const filter = {
 				webhook_owner_id: { $in: accountIds },
-			});
+			};
 
-			// Get paginated conversations using $in operator (more efficient than loop)
-			const conversations = await InstagramConversation.find(
-				{
-					webhook_owner_id: { $in: accountIds },
-				},
-				{
-					messages: 0, // Exclude messages field
-				}
-			)
+			// If instagram_id filter is provided, override webhook_owner_id filter to only that ID
+			if (instagram_id) {
+				filter.webhook_owner_id = instagram_id;
+			}
+
+			// If selectedAccounts filter is provided, filter by selected business accounts
+			if (selectedAccounts && selectedAccounts.trim()) {
+				const selectedAccountsArray = selectedAccounts
+					.split(",")
+					.map((id) => id.trim());
+				filter.webhook_owner_id = { $in: selectedAccountsArray };
+			}
+
+			// If tags filter is provided, add a filter to match any of these tags
+			if (selectedTags && selectedTags.trim()) {
+				const selectedTagsArray = selectedTags.split(",").map((t) => t.trim());
+				filter.tags = { $in: selectedTagsArray };
+			}
+
+			// Add search functionality - Search by client username
+			if (search && search.trim()) {
+				const searchRegex = new RegExp(search.trim(), "i");
+				filter["clientAccount.username"] = searchRegex;
+			}
+
+			// Get total count for pagination with filters
+			const totalConversations = await InstagramConversation.countDocuments(
+				filter
+			);
+
+			// Query conversations with filter, apply pagination and sorting
+			const conversations = await InstagramConversation.find(filter, {
+				messages: 0,
+			})
 				.sort({ last_time: -1 })
 				.skip(skip)
 				.limit(limitNum)
