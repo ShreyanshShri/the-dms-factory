@@ -448,156 +448,165 @@ const Campaigns: React.FC = () => {
 							return (
 								<div
 									key={campaign.id}
-									className="border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-lg transition-shadow"
+									className="border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-lg transition-shadow flex flex-col justify-between"
 								>
 									{/* Campaign Header */}
-									<div className="flex items-start justify-between mb-4">
-										<div className="flex items-center space-x-3">
-											<div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
-												<PlatformIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+									<div className="top-half">
+										<div className="flex items-start justify-between mb-4">
+											<div className="flex items-center space-x-3">
+												<div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+													<PlatformIcon className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+												</div>
+												<div>
+													<h3 className="font-semibold text-gray-900 dark:text-white">
+														{campaign.name}
+													</h3>
+													<span
+														className={`inline-block px-2 py-1 text-xs rounded-full capitalize ${getStatusColor(
+															campaign.status
+														)}`}
+													>
+														{campaign.status}
+													</span>
+												</div>
 											</div>
-											<div>
-												<h3 className="font-semibold text-gray-900 dark:text-white">
-													{campaign.name}
-												</h3>
-												<span
-													className={`inline-block px-2 py-1 text-xs rounded-full capitalize ${getStatusColor(
-														campaign.status
-													)}`}
-												>
-													{campaign.status}
-												</span>
+											<div className="relative">
+												<Link to={`/dashboard/campaign-info/${campaign.id}`}>
+													<button className="p-1 text-gray-400 hover:text-gray-600">
+														<MoreHorizontal className="w-4 h-4" />
+													</button>
+												</Link>
 											</div>
 										</div>
-										<div className="relative">
-											<Link to={`/dashboard/campaign-info/${campaign.id}`}>
-												<button className="p-1 text-gray-400 hover:text-gray-600">
-													<MoreHorizontal className="w-4 h-4" />
-												</button>
-											</Link>
-										</div>
+
+										{/* Campaign Description */}
+										<p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
+											{campaign.description || "No description provided"}
+										</p>
 									</div>
-
-									{/* Campaign Description */}
-									<p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
-										{campaign.description || "No description provided"}
-									</p>
-
-									{/* Campaign Stats */}
-									<div className="grid grid-cols-2 gap-4 mb-4">
-										<div className="text-center">
-											<div className="flex items-center justify-center mb-1">
-												<Users className="w-4 h-4 text-gray-500 mr-1" />
-												<span className="text-sm text-gray-500">Accounts</span>
+									<div className="bottom-half">
+										{/* Campaign Stats */}
+										<div className="grid grid-cols-2 gap-4 mb-4">
+											<div className="text-center">
+												<div className="flex items-center justify-center mb-1">
+													<Users className="w-4 h-4 text-gray-500 mr-1" />
+													<span className="text-sm text-gray-500">
+														Accounts
+													</span>
+												</div>
+												<p className="font-semibold text-gray-900 dark:text-white">
+													{campaign?.stats?.accounts || 0}
+												</p>
 											</div>
-											<p className="font-semibold text-gray-900 dark:text-white">
-												{campaign?.stats?.accounts || 0}
-											</p>
+
+											<div className="text-center">
+												<div className="flex items-center justify-center mb-1">
+													<Target className="w-4 h-4 text-gray-500 mr-1" />
+													<span className="text-sm text-gray-500">
+														Target Audience
+													</span>
+												</div>
+												<p className="font-semibold text-gray-900 dark:text-white">
+													{campaign.totalLeads?.toLocaleString() || 0}
+												</p>
+											</div>
+
+											<div className="text-center">
+												<div className="flex items-center justify-center mb-1">
+													<MessageSquare className="w-4 h-4 text-gray-500 mr-1" />
+													<span className="text-sm text-gray-500">
+														DMs Sent
+													</span>
+												</div>
+												<p className="font-semibold text-gray-900 dark:text-white">
+													{campaign?.stats?.dmsSent || 0}
+												</p>
+											</div>
+
+											<div className="text-center">
+												<div className="flex items-center justify-center mb-1">
+													<TrendingUp className="w-4 h-4 text-gray-500 mr-1" />
+													<span className="text-sm text-gray-500">Replies</span>
+												</div>
+												<p className="font-semibold text-gray-900 dark:text-white">
+													{campaign?.stats?.replies || 0}
+												</p>
+											</div>
 										</div>
 
-										<div className="text-center">
-											<div className="flex items-center justify-center mb-1">
-												<Target className="w-4 h-4 text-gray-500 mr-1" />
+										{/* Engagement Rate */}
+										<div className="mb-4">
+											<div className="flex justify-between items-center mb-1">
 												<span className="text-sm text-gray-500">
-													Target Audience
+													Engagement
+												</span>
+												<span className="text-sm font-medium text-gray-900 dark:text-white">
+													{Math.floor(
+														((campaign?.stats?.replies || 0) /
+															(campaign?.stats?.dmsSent || 1)) *
+															10000
+													) / 100}
+													%
 												</span>
 											</div>
-											<p className="font-semibold text-gray-900 dark:text-white">
-												{campaign.totalLeads?.toLocaleString() || 0}
-											</p>
-										</div>
-
-										<div className="text-center">
-											<div className="flex items-center justify-center mb-1">
-												<MessageSquare className="w-4 h-4 text-gray-500 mr-1" />
-												<span className="text-sm text-gray-500">DMs Sent</span>
+											<div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+												<div
+													className="bg-green-600 h-2 rounded-full transition-all duration-300"
+													style={{
+														width: `${Math.min(
+															Math.round(
+																((campaign?.stats?.replies || 0) /
+																	(campaign?.stats?.dmsSent || 1)) *
+																	100
+															),
+															100
+														)}%`,
+													}}
+												></div>
 											</div>
-											<p className="font-semibold text-gray-900 dark:text-white">
-												{campaign?.stats?.dmsSent || 0}
-											</p>
 										</div>
 
-										<div className="text-center">
-											<div className="flex items-center justify-center mb-1">
-												<TrendingUp className="w-4 h-4 text-gray-500 mr-1" />
-												<span className="text-sm text-gray-500">Replies</span>
-											</div>
-											<p className="font-semibold text-gray-900 dark:text-white">
-												{campaign?.stats?.replies || 0}
-											</p>
-										</div>
-									</div>
-
-									{/* Engagement Rate */}
-									<div className="mb-4">
-										<div className="flex justify-between items-center mb-1">
-											<span className="text-sm text-gray-500">Engagement</span>
-											<span className="text-sm font-medium text-gray-900 dark:text-white">
-												{Math.floor(
-													((campaign?.stats?.replies || 0) /
-														(campaign?.stats?.dmsSent || 1)) *
-														10000
-												) / 100}
-												%
-											</span>
-										</div>
-										<div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-											<div
-												className="bg-green-600 h-2 rounded-full transition-all duration-300"
-												style={{
-													width: `${Math.min(
-														Math.round(
-															((campaign?.stats?.replies || 0) /
-																(campaign?.stats?.dmsSent || 1)) *
-																100
-														),
-														100
-													)}%`,
-												}}
-											></div>
-										</div>
-									</div>
-
-									{/* Action Buttons */}
-									<div className="flex space-x-2">
-										{campaign.status === "active" ? (
+										{/* Action Buttons */}
+										<div className="flex space-x-2">
+											{campaign.status === "active" ? (
+												<button
+													onClick={() =>
+														handleCampaignAction(campaign.id, "pause")
+													}
+													disabled={updatingCampaignStatus}
+													className="flex-1 flex items-center justify-center px-3 py-2 text-sm bg-yellow-900 text-yellow-300 rounded-lg hover:bg-yellow-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+												>
+													<Pause className="w-4 h-4 mr-1" />
+													{updatingCampaignStatus ? "Pausing..." : "Pause"}
+												</button>
+											) : (
+												<button
+													onClick={() =>
+														handleCampaignAction(campaign.id, "start")
+													}
+													disabled={updatingCampaignStatus}
+													className="flex-1 flex items-center justify-center px-3 py-2 text-sm bg-green-900 text-green-300 rounded-lg hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+												>
+													<Play className="w-4 h-4 mr-1" />
+													{updatingCampaignStatus ? "Starting..." : "Start"}
+												</button>
+											)}
+											<Link
+												to={`/dashboard/campaign-edit/${campaign.id}`}
+												className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
+											>
+												<Edit className="w-4" />
+											</Link>
 											<button
 												onClick={() =>
-													handleCampaignAction(campaign.id, "pause")
+													handleCampaignAction(campaign.id, "delete")
 												}
 												disabled={updatingCampaignStatus}
-												className="flex-1 flex items-center justify-center px-3 py-2 text-sm bg-yellow-900 text-yellow-300 rounded-lg hover:bg-yellow-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+												className="px-3 py-2 text-sm bg-red-900 text-red-300 rounded-lg hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 											>
-												<Pause className="w-4 h-4 mr-1" />
-												{updatingCampaignStatus ? "Pausing..." : "Pause"}
+												<Trash2 className="w-4 h-4" />
 											</button>
-										) : (
-											<button
-												onClick={() =>
-													handleCampaignAction(campaign.id, "start")
-												}
-												disabled={updatingCampaignStatus}
-												className="flex-1 flex items-center justify-center px-3 py-2 text-sm bg-green-900 text-green-300 rounded-lg hover:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-											>
-												<Play className="w-4 h-4 mr-1" />
-												{updatingCampaignStatus ? "Starting..." : "Start"}
-											</button>
-										)}
-										<Link
-											to={`/dashboard/campaign-edit/${campaign.id}`}
-											className="px-3 py-2 text-sm bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
-										>
-											<Edit className="w-4" />
-										</Link>
-										<button
-											onClick={() =>
-												handleCampaignAction(campaign.id, "delete")
-											}
-											disabled={updatingCampaignStatus}
-											className="px-3 py-2 text-sm bg-red-900 text-red-300 rounded-lg hover:bg-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-										>
-											<Trash2 className="w-4 h-4" />
-										</button>
+										</div>
 									</div>
 								</div>
 							);

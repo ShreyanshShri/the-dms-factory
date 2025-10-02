@@ -11,7 +11,6 @@ const CRMContact = require("../models/CRMContacts");
 const CRMPipeline = require("../models/CRMPipeline");
 
 // Get or create user's pipeline with default stages
-// Get or create user's pipeline with default stages
 router.get("/pipeline", authenticateToken, async (req, res) => {
 	try {
 		let pipeline = await CRMPipeline.findOne({ userId: req.user.uid }).lean();
@@ -193,7 +192,15 @@ router.get("/contacts", authenticateToken, async (req, res) => {
 		});
 
 		const contacts = await Promise.all(contactPromises);
-		res.json({ success: true, contacts });
+
+		// Sort contacts by most recently updated CRM data first
+		const sortedContacts = contacts.sort((a, b) => {
+			const aTime = new Date(a.crm.updatedAt).getTime();
+			const bTime = new Date(b.crm.updatedAt).getTime();
+			return bTime - aTime; // Most recent first
+		});
+
+		res.json({ success: true, contacts: sortedContacts });
 	} catch (error) {
 		console.error("Error fetching contacts:", error);
 		res.status(500).json({ error: "Failed to fetch contacts" });
