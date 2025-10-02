@@ -9,6 +9,7 @@ import {
 	Wrench,
 	X,
 	Phone,
+	ClipboardClock,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -28,7 +29,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 		{ path: "/dashboard", icon: LayoutDashboard, label: "Overview" },
 		{ path: "/dashboard/accounts", icon: Users, label: "Accounts" },
 		{ path: "/dashboard/campaigns", icon: Megaphone, label: "Campaigns" },
-		{ path: "/dashboard/crm", icon: Megaphone, label: "CRM" },
+		{ path: "/dashboard/crm", icon: ClipboardClock, label: "CRM" },
 		// { path: "/dashboard/messages", icon: MessageSquare, label: "Messages" },
 		{ path: "/dashboard/inbox", icon: MessageSquare, label: "Unified Inbox" },
 		// { path: "/dashboard/tools", icon: Wrench, label: "Tools" },
