@@ -5,6 +5,7 @@ const { authenticateToken } = require("../middleware/auth");
 const AdsPowerAccount = require("../models/AdsPowerAccount");
 const Campaign = require("../models/Campaign");
 const Lead = require("../models/Lead");
+const Analytics = require("../models/Analytics");
 
 // router.use(authenticateToken);
 
@@ -624,6 +625,91 @@ router.get("/fetch-leads", async (req, res) => {
 	} catch (error) {
 		console.error("Error fetching leads:", error);
 		res.status(500).json({ success: false, message: "Failed to fetch leads" });
+	}
+});
+
+router.put("/set-lead-status", async (req, res) => {
+	try {
+		const { campaignID, leadID } = req.query;
+
+		if (!campaignID || !leadID) {
+			return res.status(400).json({
+				success: false,
+				message: "Missing required parameters",
+			});
+		}
+
+		await Lead.findByIdAndUpdate(leadID, {
+			status: "sending",
+			updatedAt: { _seconds: Math.floor(Date.now() / 1000), _nanoseconds: 0 },
+		});
+
+		return res.json({ success: true });
+	} catch (error) {
+		console.error("Error updating lead status:", error);
+		return res.status(500).json({
+			success: false,
+			message: "Failed to update lead status",
+		});
+	}
+});
+
+router.post("/analytics", async (req, res) => {
+	console.log("req.body", req.body);
+	try {
+		const {
+			campaignID,
+			accountID,
+			leadID,
+			username,
+			message,
+			status,
+			platform,
+		} = req.body;
+
+		if (!campaignID || !accountID) {
+			return res.status(400).json({
+				success: false,
+				message: "Missing required parameters",
+			});
+		}
+
+		const nowSec = Math.floor(Date.now() / 1000);
+
+		const analyticsData = new Analytics({
+			campaignID,
+			accountID,
+			leadID: leadID || "",
+			username: username || "",
+			message: message || "",
+			status: status || "unknown",
+			platform: "twitter",
+			timestamp: { _seconds: nowSec, _nanoseconds: 0 },
+			createdAt: { _seconds: nowSec, _nanoseconds: 0 },
+		});
+
+		await analyticsData.save();
+
+		// Update lead status accordingly
+		if (leadID) {
+			await Lead.findByIdAndUpdate(leadID, {
+				status: status,
+				sent: ["initialdmsent", "followup"].includes(status),
+				updatedAt: { _seconds: nowSec, _nanoseconds: 0 },
+			});
+		}
+
+		if (["initialdmsent", "followup"].includes(status)) {
+			// await RateService.recordMessageSent(accountID, campaignID);
+		}
+
+		return res.json({ success: true });
+	} catch (error) {
+		console.error("Error recording analytics:", error);
+		return res.status(500).json({
+			success: false,
+			message: "Failed to record analytics",
+		});
 	}
 });
 

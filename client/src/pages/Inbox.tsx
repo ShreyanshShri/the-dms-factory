@@ -3,7 +3,7 @@ import InstagramLoginButton from "../components/InstagramLoginButton";
 import TagsSettings from "../components/TagsSettings";
 import { useScrollToBottom } from "../hooks/useScrollToBottom";
 import usePollingInbox from "../hooks/usePollingInbox";
-import { chat } from "../services/chat";
+// import { chat } from "../services/chat";
 import { useAlert } from "../contexts/AlertContext";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -38,8 +38,8 @@ export default function ChatApp() {
 	const [accountsDropdownOpen, setAccountsDropdownOpen] = useState(false);
 	const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false);
 	const [tagsSettingsOpen, setTagsSettingsOpen] = useState(false);
-	const [interested, setInterested] = useState(false);
-	const [loading_interested, setLoading_interested] = useState(false);
+	// const [interested, setInterested] = useState(false);
+	// const [loading_interested, setLoading_interested] = useState(false);
 	const [error, setError] = useState("");
 
 	const messagesEndRef = useRef<any>(null);
@@ -86,9 +86,9 @@ export default function ChatApp() {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messages]);
 
-	useEffect(() => {
-		setInterested(activeConv?.interested);
-	}, [activeConv]);
+	// useEffect(() => {
+	// 	setInterested(activeConv?.interested);
+	// }, [activeConv]);
 
 	const sendMsg = () => {
 		send(draft);
@@ -99,20 +99,20 @@ export default function ChatApp() {
 		setSearchTerm(e.target.value);
 	};
 
-	const handleInterestedToggle = async () => {
-		setLoading_interested(true);
-		try {
-			await chat.setInterested(
-				activeConv.businessAccount.id,
-				activeConv.clientAccount.id,
-				!interested
-			);
-			setInterested(!interested);
-		} catch (err) {
-			console.error(err);
-		}
-		setLoading_interested(false);
-	};
+	// const handleInterestedToggle = async () => {
+	// 	setLoading_interested(true);
+	// 	try {
+	// 		await chat.setInterested(
+	// 			activeConv.businessAccount.id,
+	// 			activeConv.clientAccount.id,
+	// 			!interested
+	// 		);
+	// 		setInterested(!interested);
+	// 	} catch (err) {
+	// 		console.error(err);
+	// 	}
+	// 	setLoading_interested(false);
+	// };
 
 	const handleTagsUpdate = (newTags: any) => {
 		if (activeConv) {
@@ -318,7 +318,7 @@ export default function ChatApp() {
 								</p>
 							</div>
 							<div className="flex items-center space-x-3">
-								<button
+								{/* <button
 									onClick={handleInterestedToggle}
 									disabled={loading_interested}
 									className={`px-3 py-1 rounded-lg text-sm font-medium ${
@@ -332,7 +332,7 @@ export default function ChatApp() {
 										: interested
 										? "Interested"
 										: "Not Interested"}
-								</button>
+								</button> */}
 								<button
 									onClick={() => setTagsSettingsOpen(true)}
 									className="px-3 py-1 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
