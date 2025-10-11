@@ -12,12 +12,16 @@ const pricingPlans = [
 		icon: Zap,
 		description: "Perfect for getting started with essential features",
 		features: [
-			"Up to 5 projects",
+			"Upto 5 campaigns",
+			"Upto 20 accounts",
+			"Up to 500 DMs/day",
 			"Basic analytics",
-			"Email support",
-			"Standard templates",
-			"Mobile app access",
-			"Basic integrations",
+			"CRM Access",
+			"Whop Community Access",
+			// "Email/Telegram support",
+			// "Standard templates",
+			// "Mobile app access",
+			// "Basic integrations",
 		],
 		popular: false,
 		status: "active",
@@ -29,14 +33,19 @@ const pricingPlans = [
 		icon: Star,
 		description: "Most popular choice for growing businesses",
 		features: [
-			"Up to 25 projects",
+			"Upto 25 campaigns",
+			"Upto 100 accounts",
+			"Upto 2000 DMs/day",
 			"Advanced analytics",
-			"Priority support",
-			"Premium templates",
-			"Mobile app access",
-			"Advanced integrations",
-			"Team collaboration",
-			"Custom branding",
+			"CRM Access",
+			"Unified Inbox",
+			"Whop Community Access",
+			// "Priority support",
+			// "Premium templates",
+			// "Mobile app access",
+			// "Advanced integrations",
+			// "Team collaboration",
+			// "Custom branding",
 		],
 		popular: true,
 		status: "active",
@@ -48,16 +57,21 @@ const pricingPlans = [
 		icon: Crown,
 		description: "Everything you need for enterprise-level operations",
 		features: [
-			"Unlimited projects",
+			"Unlimited campaigns",
+			"Unlimited accounts",
+			"Unlimited DMs",
 			"Real-time analytics",
-			"24/7 phone support",
-			"Custom templates",
-			"Mobile app access",
-			"Enterprise integrations",
-			"Team collaboration",
-			"White-label solutions",
-			"API access",
-			"Dedicated account manager",
+			"CRM Access",
+			"Unified Inbox",
+			"AI DM setter",
+			"Whop Community Access",
+			// "Custom templates",
+			// "Mobile app access",
+			// "Enterprise integrations",
+			// "Team collaboration",
+			// "White-label solutions",
+			// "API access",
+			// "Dedicated account manager",
 		],
 		popular: false,
 		status: "active",
@@ -106,6 +120,12 @@ const SubscriptionPage = () => {
 					<p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
 						Start with a 14-day free trial on any plan. Upgrade, downgrade, or
 						cancel anytime.
+					</p>
+					<p
+						className="text-gray-700 dark:text-gray-400 max-w-3xl mx-auto mt-2"
+						style={{ fontSize: "12px" }}
+					>
+						*All Free trials have a limit of 50 DMs/day.
 					</p>
 				</div>
 
@@ -239,7 +259,7 @@ const SubscriptionPage = () => {
 								How does the free trial work?
 							</h3>
 							<p className="text-gray-600 dark:text-gray-400 text-sm">
-								Start any plan with a 14-day free trial. No credit card required
+								Start any plan with a 14-day free trial. No payment required
 								upfront. You'll only be charged after your trial ends.
 							</p>
 						</div>

@@ -254,57 +254,80 @@ const Index = () => {
 					</div> */}
 					<div className="pricing-cards">
 						<div className="pricing-card">
-							<h3>Basic</h3>
-							<p className="subtitle">For Slow Scaling</p>
-							<div className="price">$55</div>
-							<p className="price-subtitle">
-								per person, per month For Both Instagram and X
-							</p>
-							<ul className="pricing-features">
-								<li>Unlimited Accounts</li>
-								<li>Unlimited Campaigns</li>
-								<li>Send 10,000 DMs/Day</li>
-								<li>Comprehensive Dashboard</li>
-								<li>Dedicated Support</li>
-								<li>Elite Community</li>
-							</ul>
-							<Link to="/login" className="pricing-button">
+							<div>
+								<h3>Basic</h3>
+								<p className="subtitle">For Slow Scaling</p>
+								<div className="price">$55</div>
+								<p className="price-subtitle">
+									per person, per month For Both Instagram and X
+								</p>
+								<ul className="pricing-features">
+									<li>Upto 5 Campaigns</li>
+									<li>Upto 20 Accounts</li>
+									<li>Send 500 DMs/Day</li>
+									<li>Basic Analytics</li>
+									<li>CRM Access</li>
+									{/* <li>Whop Community Access</li> */}
+								</ul>
+							</div>
+							<Link
+								to="/dashboard/manage-subscription"
+								className="pricing-button"
+							>
 								Get Started for Free
 							</Link>
 						</div>
 						<div className="pricing-card featured">
-							<div className="popular-badge">Most Popular</div>
-							<h3>Premium</h3>
-							<p className="subtitle">Best For Starting</p>
-							<div className="price">$97</div>
-							<p className="price-subtitle">
-								per person, per month For Both Instagram and X
-							</p>
-							<ul className="pricing-features">
-								<li>Everything In Basic plan</li>
-								<li>Unified Inbox to handle multiple Accounts</li>
-								<li>Comprehensive Dashboard</li>
-								<li>Dedicated Support</li>
-								<li>Elite Community</li>
-							</ul>
-							<Link to="/login" className="pricing-button">
+							<div>
+								{/* <div className="popular-badge">Most Popular</div> */}
+								<h3>Standard</h3>
+								<p className="subtitle">Best For Starting</p>
+								<div className="price">$97</div>
+								<p className="price-subtitle">
+									per person, per month For Both Instagram and X
+								</p>
+								<ul className="pricing-features">
+									<li>Upto 25 Campaigns</li>
+									<li>Upto 20 Accounts</li>
+									<li>Send 2000 DMs/Day</li>
+									<li>Basic Analytics</li>
+									<li>CRM Access</li>
+									{/* <li>Whop Community Access</li> */}
+									<li>Unified Inbox to handle multiple Accounts</li>
+									<li>Dedicated Support</li>
+								</ul>
+							</div>
+							<Link
+								to="/dashboard/manage-subscription"
+								className="pricing-button"
+							>
 								Get Started for Free
 							</Link>
 						</div>
 						<div className="pricing-card">
-							<h3>Standard</h3>
-							<p className="subtitle">For Maximum Results</p>
-							<div className="price">$149</div>
-							<p className="price-subtitle">
-								per person, per month For Both Instagram and X
-							</p>
-							<ul className="pricing-features">
-								<li>Everything in Premium Plan</li>
-								<li>Dedicated AI DM Setter</li>
-								<li>Dedicated Support</li>
-								<li>Elite Community</li>
-							</ul>
-							<Link to="/login" className="pricing-button">
+							<div>
+								<h3>Premium</h3>
+								<p className="subtitle">For Maximum Results</p>
+								<div className="price">$149</div>
+								<p className="price-subtitle">
+									per person, per month For Both Instagram and X
+								</p>
+								<ul className="pricing-features">
+									<li>Upto 25 Campaigns</li>
+									<li>Upto 20 Accounts</li>
+									<li>Send 2000 DMs/Day</li>
+									<li>Basic Analytics</li>
+									<li>CRM Access</li>
+									{/* <li>Whop Community Access</li> */}
+									<li>Unified Inbox to handle multiple Accounts</li>
+									<li>Dedicated Support</li>
+									<li>Dedicated AI DM Setter</li>
+								</ul>
+							</div>
+							<Link
+								to="/dashboard/manage-subscription"
+								className="pricing-button"
+							>
 								Get Started for Free
 							</Link>
 						</div>
@@ -616,7 +639,7 @@ const Index = () => {
 						</div>
 					</div>
 					<div className="footer-bottom">
-						Copyright © 2024 Buildfluence. <br />
+						Copyright © 2025 Buildfluence. <br />
 						All Rights Reserved
 					</div>
 				</div>

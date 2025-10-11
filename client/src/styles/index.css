@@ -612,6 +612,9 @@ body {
 	width: 31%;
 	text-align: center;
 	transition: transform 0.3s;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
 }
 
 .pricing-card:hover {
@@ -620,7 +623,7 @@ body {
 
 .pricing-card.featured {
 	background: var(--token-0a6023b7-956f-483f-b3b2-22ca5cf79ece);
-	transform: scale(1.05);
+	/* transform: scale(1.05); */
 }
 
 .pricing-card h3 {
