@@ -25,13 +25,20 @@ export interface BillingHistoryItem {
 }
 
 export interface Subscription {
-	status?: "pending" | "active" | "trial" | "failed" | "expired" | "cancelled";
+	status?:
+		| "pending"
+		| "active"
+		| "trialing"
+		| "failed"
+		| "expired"
+		| "cancelled";
 	lastEvent?: string;
 	whopMembershipId?: string;
 	tier?: string;
 	tierValue?: number;
 	planId?: string;
 
+	hasUsedTrial?: boolean;
 	// Period tracking
 	renewalPeriodStart?: Date;
 	renewalPeriodEnd?: Date;
@@ -340,7 +347,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 		if (!state.user?.subscription) return false;
 		const sub = state.user.subscription;
 		return (
-			(sub.status === "active" || sub.status === "trial") && sub.valid !== false
+			(sub.status === "active" || sub.status === "trialing") &&
+			sub.valid !== false
 		);
 	}, [state.user]);
 
@@ -358,7 +366,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 		const now = new Date();
 
 		return (
-			sub.status === "trial" &&
+			sub.status === "trialing" &&
 			sub.valid === true &&
 			(!sub.trialEndsAt || sub.trialEndsAt > now) &&
 			(!sub.expiresAt || sub.expiresAt > now)
@@ -374,7 +382,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 		if (sub.status === "expired" || sub.valid === false) return true;
 		if (sub.expiresAt && sub.expiresAt <= now) return true;
 		if (sub.renewalPeriodEnd && sub.renewalPeriodEnd <= now) return true;
-		if (sub.trialEndsAt && sub.trialEndsAt <= now && sub.status === "trial")
+		if (sub.trialEndsAt && sub.trialEndsAt <= now && sub.status === "trialing")
 			return true;
 
 		return false;

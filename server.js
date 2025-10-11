@@ -18,6 +18,7 @@ const crmRoutes = require("./routes/crm");
 const dashboardRoutes = require("./routes/dashboard");
 const billingRoutes = require("./routes/billing");
 const adsPowerAutomationDashboardRoutes = require("./routes/adspower_automation_dashboard");
+const subscriptionRoutes = require("./routes/subscription");
 const { createProxyMiddleware } = require("http-proxy-middleware");
 const connectDB = require("./config/dbConnect");
 
@@ -70,7 +71,7 @@ app.use(
 	})
 );
 
-app.use("/api/v1/webhooks", webhookRoutes);
+app.use("/api/v1/payments/webhook", webhookRoutes);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -98,6 +99,7 @@ app.use(
 	adsPowerAutomationDashboardRoutes
 );
 app.use("/api/v1/billing", billingRoutes);
+app.use("/api/v1/subscription", subscriptionRoutes);
 
 // Health check
 app.get("/health", (req, res) => {

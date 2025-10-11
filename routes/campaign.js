@@ -704,7 +704,7 @@ router.get("/fetch-leads", optionalSubscription, async (req, res) => {
 			});
 		}
 
-		if (req.user.subscription.status === "trial") {
+		if (req.user.subscription.status === "trialing") {
 			// get analytics count
 			const campaignIds = await Campaign.distinct("_id", {
 				userId: req.user.uid,

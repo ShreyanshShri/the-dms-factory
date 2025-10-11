@@ -32,6 +32,7 @@ const setupCors = (app) => {
 					"file://", // Electron file protocol
 					"app://./index.html", // Electron app protocol
 					null, // Electron requests without origin
+					"https://6ff9140531a7.ngrok-free.app",
 			  ];
 
 	const corsOptions = {

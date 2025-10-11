@@ -247,6 +247,48 @@ export const dashboardAPI = {
 
 // Add this to your api.ts file
 
+export const paymentAPI = {
+	// Create subscription with trial
+	createSubscription: async (tier: string): Promise<any> => {
+		return await axiosInstance.post("/subscription/create", { tier });
+	},
+
+	// Upgrade subscription
+	upgradeSubscription: async (newTier: string): Promise<any> => {
+		return await axiosInstance.post("/subscription/upgrade", { newTier });
+	},
+
+	// Upgrade from trial to paid immediately
+	upgradeFromTrial: async (newTier: string): Promise<any> => {
+		return await axiosInstance.post("/subscription/upgrade-trial", { newTier });
+	},
+
+	// Cancel subscription
+	cancelSubscription: async (immediate: boolean = false): Promise<any> => {
+		return await axiosInstance.post("/subscription/cancel", { immediate });
+	},
+
+	// Reactivate subscription
+	reactivateSubscription: async (): Promise<any> => {
+		return await axiosInstance.post("/subscription/reactivate", {});
+	},
+
+	// Get subscription status
+	getSubscriptionStatus: async (): Promise<any> => {
+		return await axiosInstance.get("/subscription/status");
+	},
+
+	getManageSubscription: async (): Promise<any> => {
+		return await axiosInstance.get("/subscription/manage");
+	},
+
+	getCheckoutConfirmation: async (sessionId: string): Promise<any> => {
+		return await axiosInstance.get(
+			`/subscription/checkout/success/${sessionId}`
+		);
+	},
+};
+
 export const billingAPI = {
 	getBillingHistory: async (): Promise<any> => {
 		return await axiosInstance.get("/billing/history");

@@ -47,15 +47,6 @@ const Overview: React.FC = () => {
 	const { hasActiveSubscription, user } = useAuth();
 
 	useEffect(() => {
-		if (!hasActiveSubscription()) {
-			console.log("fuck");
-			setState((prev) => ({
-				...prev,
-				error: "Please purchase a subscription plan to use this feature.",
-				loading: false,
-			}));
-			return;
-		}
 		fetchDashboardData();
 
 		// Set up polling for real-time updates every 30 seconds
@@ -64,6 +55,15 @@ const Overview: React.FC = () => {
 	}, [user]);
 
 	const fetchDashboardData = async (): Promise<void> => {
+		if (!hasActiveSubscription()) {
+			setState((prev) => ({
+				...prev,
+				error: "Please purchase a subscription plan to use this feature.",
+				loading: false,
+			}));
+			return;
+		}
+
 		try {
 			setState((prev) => ({ ...prev, error: null }));
 			console.log("Fetching dashboard data...");

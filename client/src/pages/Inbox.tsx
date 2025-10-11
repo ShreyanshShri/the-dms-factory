@@ -75,7 +75,7 @@ export default function ChatApp() {
 		if (
 			!(
 				subscriptionStatus &&
-				(subscriptionTier === "Premium" || subscriptionTier === "Standard")
+				(subscriptionTier === "premium" || subscriptionTier === "standard")
 			)
 		) {
 			setError("Please purchase a subscription plan to use this feature.");

@@ -1,313 +1,475 @@
-const crypto = require("crypto");
-const bodyParser = require("body-parser");
 const express = require("express");
-const router = express.Router();
-const { authenticateToken } = require("../middleware/auth");
-
-const Billing = require("../models/Billing");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const User = require("../models/User");
+const Billing = require("../models/Billing");
+const router = express.Router();
 
-const WHOP_WEBHOOK_SECRET = process.env.WHOP_WEBHOOK_SECRET;
+const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-const TIER_MAPPING = {
-	plan_KUuUHqMFyFG1U: { name: "Premium", value: 149 },
-	plan_qy4Xr0dxEdnEi: { name: "Standard", value: 97 },
-	plan_ydYbLPyKoeURo: { name: "Basic", value: 55 },
+// Price ID to tier mapping
+const PRICE_TIER_MAP = {
+	price_1SGGUfQmvZBphmDWMk48ya35: { tier: "basic", tierValue: 55 },
+	price_1SGGW0QmvZBphmDWkut1HFQV: { tier: "standard", tierValue: 97 },
+	price_1SGGYjQmvZBphmDWTGE5Wxn1: { tier: "premium", tierValue: 149 },
 };
 
-// Helper to check if user has any previous successful billing
-const hasExistingBilling = async (email) => {
-	if (!email) return false;
-
-	try {
-		const existing = await Billing.findOne({
-			email,
-			eventType: { $in: ["payment_succeeded", "membership_went_valid"] },
-		}).lean();
-
-		return !!existing;
-	} catch (err) {
-		console.error("❌ Error checking existing billing:", err);
-		return false;
+// Helper function to get tier info from price ID
+function getTierInfoFromPriceId(priceId) {
+	const tierInfo = PRICE_TIER_MAP[priceId];
+	if (!tierInfo) {
+		console.warn(`Unknown price ID: ${priceId}`);
+		return { tier: null, tierValue: null };
 	}
-};
+	return tierInfo;
+}
 
-// Whop payment webhook handler
+// Helper function to extract price ID from subscription
+function getPriceIdFromSubscription(subscription) {
+	if (
+		!subscription.items ||
+		!subscription.items.data ||
+		subscription.items.data.length === 0
+	) {
+		console.error("No subscription items found");
+		return null;
+	}
+	return subscription.items.data[0].price.id;
+}
+
+// Stripe webhook endpoint
 router.post(
-	"/payment-webhook",
-	bodyParser.raw({ type: () => true }), // Raw body to verify signature
+	"/stripe",
+	express.raw({ type: "application/json" }),
 	async (req, res) => {
+		const sig = req.headers["stripe-signature"];
+		let event;
+
 		try {
-			const signature = req.headers["whop-signature"];
-			const rawBody = req.body.toString("utf8");
+			event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+		} catch (err) {
+			console.log(`Webhook signature verification failed.`, err.message);
+			return res.status(400).send(`Webhook Error: ${err.message}`);
+		}
 
-			// Verify HMAC signature
-			if (WHOP_WEBHOOK_SECRET && signature) {
-				const expectedSig = crypto
-					.createHmac("sha256", WHOP_WEBHOOK_SECRET)
-					.update(rawBody)
-					.digest("hex");
-
-				if (expectedSig !== signature.trim()) {
-					console.error("❌ Invalid webhook signature");
-					return res.status(400).send("invalid signature");
-				}
-			}
-
-			let event;
-			try {
-				event = JSON.parse(rawBody);
-			} catch (e) {
-				console.error("❌ Failed to parse webhook JSON:", e.message);
-				return res.status(400).send("invalid json");
-			}
-
-			const action = event.action || "";
-			const data = event.data || {};
-
-			const type = action.toLowerCase().replace(/\./g, "_");
-			console.log("Received webhook event:", type);
-			console.log("Received webhook data:", data);
-
-			let email = data.user_email || data.email;
-			console.log("Membership Id", data.id);
-			if (email === undefined || email === null) {
-				const user = await User.findOne({
-					"subscription.whopMembershipId": data.id,
-				});
-				email = user?.email;
-			}
-			const membershipId = data.membership_id || data.id;
-			const tierInfo = TIER_MAPPING[data.plan_id] || {
-				name: "Unknown",
-				value: data.subtotal || data.final_amount || 0,
-			};
-
-			switch (type) {
-				case "payment_pending":
-					await updateSubscription(email, {
-						status: "pending",
-						lastEvent: type,
-						whopMembershipId: membershipId,
-						tier: tierInfo.name,
-						tierValue: tierInfo.value,
-						planId: data.plan_id,
-					});
-					await createBillingRecord(email, data, type, tierInfo);
+		try {
+			switch (event.type) {
+				case "customer.subscription.created":
+					await handleSubscriptionCreated(event.data.object);
 					break;
 
-				case "payment_succeeded":
-					const hasPrevPayment = await hasExistingBilling(email);
-					const newStatus = hasPrevPayment ? "trial" : "active";
-					console.log(
-						`User ${email} previous payment: ${hasPrevPayment}, status: ${newStatus}`
-					);
-
-					await updateSubscription(email, {
-						status: newStatus,
-						lastEvent: type,
-						whopMembershipId: membershipId,
-						tier: tierInfo.name,
-						tierValue: tierInfo.value,
-						planId: data.plan_id,
-					});
-					await createBillingRecord(email, data, type, tierInfo);
+				case "customer.subscription.updated":
+					await handleSubscriptionUpdated(event.data.object);
 					break;
 
-				case "payment_failed":
-					await updateSubscription(email, {
-						status: "failed",
-						lastEvent: type,
-						whopMembershipId: membershipId,
-						tier: tierInfo.name,
-						tierValue: tierInfo.value,
-						planId: data.plan_id,
-					});
-					await createBillingRecord(email, data, type, tierInfo);
+				case "customer.subscription.deleted":
+					await handleSubscriptionDeleted(event.data.object);
 					break;
 
-				case "membership_went_valid":
-					const hasPrevMember = await hasExistingBilling(email);
-					const memberStatus = hasPrevMember ? "trial" : "active";
-
-					console.log(
-						`User ${email} previous membership: ${hasPrevMember}, status: ${memberStatus}`
-					);
-
-					await updateSubscription(email, {
-						status: memberStatus,
-						lastEvent: type,
-						whopMembershipId: membershipId,
-						...(data.renewal_period_start && {
-							renewalPeriodStart: new Date(data.renewal_period_start * 1000),
-						}),
-						...(data.renewal_period_end && {
-							renewalPeriodEnd: new Date(data.renewal_period_end * 1000),
-						}),
-						...(data.expires_at && {
-							expiresAt: new Date(data.expires_at * 1000),
-						}),
-						tier: tierInfo.name,
-						tierValue: tierInfo.value,
-						planId: data.plan_id,
-						valid: data.valid,
-						licenseKey: data.license_key,
-					});
-					// await createBillingRecord(email, data, type, tierInfo);
+				case "customer.subscription.trial_will_end":
+					await handleTrialWillEnd(event.data.object);
 					break;
 
-				case "membership_metadata_updated":
-					await updateSubscription(email, {
-						lastEvent: type,
-						metadata: data.metadata || {},
-						tier: tierInfo.name,
-						tierValue: tierInfo.value,
-						planId: data.plan_id,
-						valid: data.valid,
-					});
-					// await createBillingRecord(email, data, type, tierInfo);
+				case "invoice.payment_succeeded":
+					await handleInvoiceBilling(event.data.object, "succeeded");
 					break;
 
-				case "membership_went_invalid":
-					await updateSubscription(email, {
-						status: "expired",
-						lastEvent: type,
-						whopMembershipId: membershipId,
-						tier: tierInfo.name,
-						tierValue: tierInfo.value,
-						planId: data.plan_id,
-						valid: data.valid,
-					});
-					// await createBillingRecord(email, data, type, tierInfo);
+				case "invoice.payment_failed":
+					await handleInvoiceBilling(event.data.object, "failed");
 					break;
 
-				// Add other cases similarly...
+				case "checkout.session.completed":
+					await handleCheckoutCompleted(event.data.object);
+					break;
+
+				case "checkout.session.async_payment_succeeded":
+					await handleCheckoutPayment(event.data.object, "succeeded");
+					break;
+
+				case "checkout.session.async_payment_failed":
+					await handleCheckoutPayment(event.data.object, "failed");
+					break;
+
+				case "customer.updated":
+				case "customer.created":
+				case "payment_method.attached":
+				case "setup_intent.succeeded":
+				case "setup_intent.created":
+				case "invoice.created":
+				case "checkout.session.completed":
+				case "invoice.finalized":
+				case "invoice.paid":
+					// console.log(`Event ${event.type} received and acknowledged`);
+					break;
 
 				default:
-					console.log("Unhandled webhook event type:", type);
+				// console.log(`Unhandled event type ${event.type}`);
 			}
 
-			return res.status(200).send("ok");
-		} catch (err) {
-			console.error("Webhook processing error:", err);
-			return res.status(500).send("internal error");
+			res.json({ received: true });
+		} catch (error) {
+			console.error("Webhook handling error:", error);
+			res.status(500).json({ error: "Webhook handling failed" });
 		}
 	}
 );
 
-const updateSubscription = async (email, updates) => {
-	if (!email) {
-		console.error("❌ No email in webhook event");
+// Webhook handlers
+async function handleCheckoutCompleted(session) {
+	console.log("Handling checkout completed...");
+	const upgradeTypes = ["subscription_upgrade", "trial_upgrade"];
+
+	if (
+		!session.metadata?.type ||
+		!upgradeTypes.includes(session.metadata.type)
+	) {
+		return;
+	}
+
+	if (session.payment_status !== "paid") {
+		return;
+	}
+
+	const { subscriptionId, newPriceId } = session.metadata;
+
+	if (!subscriptionId || !newPriceId) {
+		console.error("Missing required metadata in checkout session");
 		return;
 	}
 
 	try {
-		let user = await User.findOne({ email });
-		if (!user) {
-			console.log("❌ No user found for email:", email);
-			// Create new user
-			user = new User({
-				email,
-				subscription: {
-					...updates,
-					updatedAt: new Date(),
+		const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+		const updateParams = {
+			items: [
+				{
+					id: subscription.items.data[0].id,
+					price: newPriceId,
 				},
-			});
-			await user.save();
-			console.log(`✅ Created new user ${email} with subscription:`, updates);
-			return user._id;
+			],
+			proration_behavior: "none",
+		};
+
+		// If upgrading from trial, end the trial and start billing immediately
+		if (
+			session.metadata.type === "trial_upgrade" &&
+			subscription.status === "trialing"
+		) {
+			updateParams.trial_end = "now";
+			updateParams.billing_cycle_anchor = "now"; // Start billing period NOW
 		}
 
-		// Clean updates to remove undefined keys
-		const cleanUpdates = {};
-		Object.keys(updates).forEach((key) => {
-			if (updates[key] !== undefined) cleanUpdates[key] = updates[key];
-		});
-
-		user.subscription = {
-			...user.subscription,
-			...cleanUpdates,
-			updatedAt: new Date(),
-		};
-		console.log("User: ", user);
-		await user.save();
-		console.log(`✅ Updated user ${email}:`, user.subscription);
-		return user._id;
-	} catch (err) {
-		console.error("❌ MongoDB update failed:", err);
-		throw err;
+		// Update Stripe subscription - this fires customer.subscription.updated
+		await stripe.subscriptions.update(subscriptionId, updateParams);
+	} catch (error) {
+		console.error(`Error updating subscription:`, error);
+		throw error;
 	}
-};
+}
 
-const createBillingRecord = async (email, eventData, eventType, tierInfo) => {
-	if (!email) {
-		console.log("⚠️ No email provided for billing record");
+async function handleSubscriptionCreated(subscription) {
+	const userId = subscription.metadata?.userId;
+	if (!userId) {
+		console.error("No userId in subscription metadata");
 		return;
 	}
 
-	try {
-		const user = await User.findOne({ email });
-		const userId = user ? user._id : null;
-
-		const createdAt = eventData.created_at
-			? new Date(eventData.created_at * 1000)
-			: new Date();
-
-		const billingRecord = {
-			userId,
-			email,
-			transactionId: eventData.id || null,
-			membershipId: eventData.membership_id || eventData.id || null,
-			planId: eventData.plan_id || null,
-			eventType,
-			status: eventData.status || "unknown",
-			amount: eventData.subtotal || eventData.final_amount || 0,
-			currency: eventData.currency || "usd",
-			tier: tierInfo.name,
-			tierValue: tierInfo.value,
-			paymentMethod: {
-				type: eventData.payment_method_type || null,
-				cardBrand: eventData.card_brand || null,
-				cardLast4: eventData.card_last_4 || null,
-				walletType: eventData.wallet_type || null,
-			},
-			billingAddress: eventData.billing_address || null,
-			refundedAmount: eventData.refunded_amount || 0,
-			createdAt,
-			paidAt: eventData.paid_at ? new Date(eventData.paid_at * 1000) : null,
-			refundedAt: eventData.refunded_at
-				? new Date(eventData.refunded_at * 1000)
-				: null,
-			timestamp: new Date(),
-			billingReason: eventData.billing_reason || null,
-			licenseKey: eventData.license_key || null,
-			valid: eventData.valid || null,
-			cancelAtPeriodEnd: eventData.cancel_at_period_end || null,
-			renewalPeriodStart: eventData.renewal_period_start
-				? new Date(eventData.renewal_period_start * 1000)
-				: null,
-			renewalPeriodEnd: eventData.renewal_period_end
-				? new Date(eventData.renewal_period_end * 1000)
-				: null,
-			expiresAt: eventData.expires_at
-				? new Date(eventData.expires_at * 1000)
-				: null,
-			affiliate: eventData.affiliate || null,
-			rawEventData: eventData,
-		};
-
-		// Remove undefined fields from billingRecord
-		Object.keys(billingRecord).forEach(
-			(key) => billingRecord[key] === undefined && delete billingRecord[key]
-		);
-
-		const billing = new Billing(billingRecord);
-		await billing.save();
-
-		console.log(`✅ Created billing record for ${email}`);
-	} catch (err) {
-		console.error("❌ Failed to create billing record:", err);
+	// Extract price ID and tier information
+	const priceId = getPriceIdFromSubscription(subscription);
+	if (!priceId) {
+		console.error("Could not extract price ID from subscription");
+		return;
 	}
-};
+
+	const { tier, tierValue } = getTierInfoFromPriceId(priceId);
+
+	const updateData = {
+		"subscription.stripeCustomerId": subscription.customer,
+		"subscription.stripeSubscriptionId": subscription.id,
+		"subscription.stripePriceId": priceId,
+		"subscription.status": subscription.status,
+		"subscription.tier": tier,
+		"subscription.tierValue": tierValue,
+		"subscription.lastWebhookEvent": "subscription.created",
+		"subscription.lastWebhookTimestamp": new Date(),
+		"subscription.updatedAt": new Date(),
+	};
+
+	// Set trial flag if user is on trial
+	if (subscription.trial_start) {
+		updateData["subscription.hasUsedTrial"] = true;
+		updateData["subscription.trialStart"] = new Date(
+			subscription.trial_start * 1000
+		);
+	}
+
+	if (subscription.trial_end) {
+		updateData["subscription.trialEnd"] = new Date(
+			subscription.trial_end * 1000
+		);
+	}
+
+	// Only set period dates if they exist (not always present during trial)
+	if (subscription.current_period_start) {
+		updateData["subscription.currentPeriodStart"] = new Date(
+			subscription.current_period_start * 1000
+		);
+	}
+
+	if (subscription.current_period_end) {
+		updateData["subscription.currentPeriodEnd"] = new Date(
+			subscription.current_period_end * 1000
+		);
+	}
+
+	await User.findByIdAndUpdate(userId, updateData);
+}
+
+async function handleSubscriptionUpdated(subscription) {
+	console.log("Handling subscription updated...");
+	const userId = subscription.metadata?.userId;
+	if (!userId) {
+		console.error("No userId in subscription metadata");
+		return;
+	}
+
+	const freshSubscription = await stripe.subscriptions.retrieve(
+		subscription.id
+	);
+
+	// NEW: Get period from subscription items, not subscription
+	const subscriptionItem = freshSubscription.items.data[0];
+
+	const priceId = subscriptionItem.price.id; // Also get price from item now
+
+	const { tier, tierValue } = getTierInfoFromPriceId(priceId);
+
+	const updateData = {
+		"subscription.stripePriceId": priceId,
+		"subscription.tier": tier,
+		"subscription.tierValue": tierValue,
+		"subscription.status": freshSubscription.status,
+		"subscription.cancelAtPeriodEnd": freshSubscription.cancel_at_period_end,
+		"subscription.lastWebhookEvent": "subscription.updated",
+		"subscription.lastWebhookTimestamp": new Date(),
+		"subscription.updatedAt": new Date(),
+	};
+
+	// Get periods from subscription ITEM, not subscription
+	if (subscriptionItem.current_period_start) {
+		updateData["subscription.currentPeriodStart"] = new Date(
+			subscriptionItem.current_period_start * 1000
+		);
+	}
+
+	if (subscriptionItem.current_period_end) {
+		updateData["subscription.currentPeriodEnd"] = new Date(
+			subscriptionItem.current_period_end * 1000
+		);
+	}
+
+	// Clear trial dates if subscription is now active
+	if (freshSubscription.status === "active" && !freshSubscription.trial_end) {
+		updateData["subscription.trialEnd"] = null;
+		updateData["subscription.trialStart"] = null;
+	}
+
+	if (freshSubscription.cancel_at_period_end === false) {
+		updateData["subscription.pendingUpdate"] = null;
+	}
+
+	await User.findByIdAndUpdate(userId, updateData);
+}
+
+async function handleSubscriptionDeleted(subscription) {
+	const userId = subscription.metadata?.userId;
+	if (!userId) {
+		console.error("No userId in subscription metadata");
+		return;
+	}
+
+	await User.findByIdAndUpdate(userId, {
+		"subscription.status": "canceled",
+		"subscription.canceledAt": new Date(),
+		"subscription.lastWebhookEvent": "subscription.deleted",
+		"subscription.lastWebhookTimestamp": new Date(),
+		"subscription.updatedAt": new Date(),
+	});
+
+	console.log(`Subscription deleted for user ${userId}`);
+}
+
+async function handleTrialWillEnd(subscription) {
+	const userId = subscription.metadata?.userId;
+	if (!userId) {
+		console.error("No userId in subscription metadata");
+		return;
+	}
+
+	// Send email notification about trial ending
+	console.log(
+		`Trial will end for user ${userId} on ${new Date(
+			subscription.trial_end * 1000
+		)}`
+	);
+
+	await User.findByIdAndUpdate(userId, {
+		"subscription.lastWebhookEvent": "trial.will_end",
+		"subscription.lastWebhookTimestamp": new Date(),
+	});
+}
+
+async function handleInvoiceBilling(invoice, paymentStatus) {
+	console.log("Handling invoice billing...");
+
+	if (!invoice.customer_email) {
+		console.error("Invoice Billing: No email found");
+		return;
+	}
+
+	const user = await User.findOne({ email: invoice.customer_email });
+	if (!user) {
+		console.error("Invoice Billing: User not found");
+		return;
+	}
+
+	// Get payment method details for BOTH succeeded and failed
+	let paymentMethodDetails = {};
+	let receiptUrl = null;
+
+	if (invoice.charge) {
+		try {
+			const charge = await stripe.charges.retrieve(invoice.charge);
+			paymentMethodDetails = {
+				type: charge.payment_method_details?.type || null,
+				cardBrand: charge.payment_method_details?.card?.brand || null,
+				cardLast4: charge.payment_method_details?.card?.last4 || null,
+				walletType: charge.payment_method_details?.card?.wallet?.type || null,
+			};
+			receiptUrl = charge.receipt_url || null;
+		} catch (error) {
+			console.error("Error fetching charge:", error);
+		}
+	}
+
+	// Extract price info from line items (if exists)
+	const lineItem = invoice.lines?.data?.[0];
+	const priceId = lineItem?.price?.id || null;
+	const productId = lineItem?.price?.product || null;
+	const { tier, tierValue } = priceId
+		? getTierInfoFromPriceId(priceId)
+		: { tier: "Unknown", tierValue: 0 };
+
+	// Create billing record - BOTH SUCCESS AND FAILURE
+	await Billing.create({
+		userId: user._id.toString(),
+		email: user.email,
+		stripeCustomerId: invoice.customer,
+		stripeInvoiceId: invoice.id,
+		stripePaymentIntentId: invoice.payment_intent,
+		stripeChargeId: invoice.charge || null,
+		stripePriceId: priceId,
+		stripeProductId: productId,
+		eventType: `invoice.payment_${paymentStatus}`,
+		status: paymentStatus,
+		amount:
+			paymentStatus === "succeeded" ? invoice.amount_paid : invoice.amount_due,
+		currency: invoice.currency,
+		tier: tier,
+		tierValue: tierValue,
+		attemptCount: invoice.attempt_count || 0,
+		paymentMethod: paymentMethodDetails,
+		billingAddress: invoice.customer_address || null,
+		invoiceUrl: invoice.hosted_invoice_url,
+		receiptUrl: receiptUrl,
+		paidAt: invoice.status_transitions?.paid_at
+			? new Date(invoice.status_transitions.paid_at * 1000)
+			: null,
+		failedAt: paymentStatus === "failed" ? new Date() : null,
+		rawEventData: invoice,
+	});
+}
+
+async function handleCheckoutPayment(session, paymentStatus) {
+	console.log("Handling checkout payment...");
+
+	const email = session.customer_email || session.customer_details?.email;
+	if (!email) {
+		console.error("Checkout Payment: No email found");
+		return;
+	}
+
+	const user = await User.findOne({ email: email });
+	if (!user) {
+		console.error("Checkout Payment: User not found");
+		return;
+	}
+
+	// Get payment intent for transaction details
+	let paymentMethodDetails = {};
+	let receiptUrl = null;
+
+	if (session.payment_intent) {
+		try {
+			const paymentIntent = await stripe.paymentIntents.retrieve(
+				session.payment_intent,
+				{ expand: ["charges.data.payment_method_details"] }
+			);
+
+			const charge = paymentIntent.charges.data[0];
+			if (charge) {
+				paymentMethodDetails = {
+					type: charge.payment_method_details?.type || null,
+					cardBrand: charge.payment_method_details?.card?.brand || null,
+					cardLast4: charge.payment_method_details?.card?.last4 || null,
+					walletType: charge.payment_method_details?.card?.wallet?.type || null,
+				};
+				receiptUrl = charge.receipt_url || null;
+			}
+		} catch (error) {
+			console.error("Error fetching payment intent:", error);
+		}
+	}
+
+	// Extract metadata from session
+	const metadata = session.metadata || {};
+	// const lineItem = session.line_items?.data?.[0] || null;
+
+	// Create billing record
+	await Billing.create({
+		userId: user._id.toString(),
+		email: email,
+		stripeCustomerId: session.customer,
+		stripePaymentIntentId: session.payment_intent,
+		stripeCheckoutSessionId: session.id,
+		eventType: `checkout.session.${paymentStatus}`,
+		status: paymentStatus,
+		amount: session.amount_total,
+		currency: session.currency,
+		tier: metadata.newTier || "Unknown",
+		tierValue: session.amount_total,
+		paymentMethod: paymentMethodDetails,
+		billingAddress: session.customer_details?.address || null,
+		receiptUrl: receiptUrl,
+		paidAt: paymentStatus === "succeeded" ? new Date() : null,
+		failedAt: paymentStatus === "failed" ? new Date() : null,
+		metadata: metadata,
+		rawEventData: session,
+	});
+
+	// Update user
+	await User.findByIdAndUpdate(user._id, {
+		$push: {
+			billingHistory: {
+				stripePaymentIntentId: session.payment_intent,
+				event: `checkout.${paymentStatus}`,
+				amount: session.amount_total,
+				currency: session.currency,
+				status: paymentStatus,
+				tier: metadata.newTier,
+				processedAt: new Date(),
+			},
+		},
+	});
+}
 
 module.exports = router;

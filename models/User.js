@@ -4,55 +4,78 @@ const UserSchema = new mongoose.Schema(
 	{
 		uid: { type: String, required: true, unique: true },
 		name: { type: String },
-		email: { type: String, required: true, unique: true }, // Made required since webhooks rely on email
+		email: { type: String, required: true, unique: true },
 		password: { type: String, required: true },
 		role: { type: String, default: "user" },
 
-		// Enhanced subscription object aligned with Whop webhook data
+		// Stripe-specific subscription tracking
 		subscription: {
+			// Stripe identifiers
+			stripeCustomerId: { type: String }, // Stripe customer ID
+			stripeSubscriptionId: { type: String }, // Stripe subscription ID
+			stripePriceId: { type: String }, // Current price ID
+
 			status: {
 				type: String,
-				enum: ["pending", "active", "trial", "failed", "expired", "cancelled"],
+				enum: [
+					"pending",
+					"active",
+					"trialing",
+					"past_due",
+					"canceled",
+					"unpaid",
+					"incomplete",
+					"incomplete_expired",
+				],
 				default: "pending",
 			},
-			lastEvent: { type: String }, // Tracks last webhook event received
-			whopMembershipId: { type: String }, // Whop's membership identifier
-			tier: { type: String }, // Plan tier name
-			tierValue: { type: Number }, // Plan monetary value
-			planId: { type: String }, // Whop plan identifier
 
-			// Subscription period tracking
-			renewalPeriodStart: { type: Date }, // From webhook data
-			renewalPeriodEnd: { type: Date }, // From webhook data
-			expiresAt: { type: Date }, // When membership expires
-
-			// Subscription status flags
-			valid: { type: Boolean, default: false }, // Whop membership validity
-			licenseKey: { type: String }, // If applicable
-			cancelAtPeriodEnd: { type: Boolean, default: false },
-
-			// Metadata and tracking
-			metadata: {
-				type: mongoose.Schema.Types.Mixed, // Flexible object for webhook metadata
-				default: {},
+			// Plan details
+			tier: {
+				type: String,
+				enum: ["basic", "standard", "premium"],
 			},
-			createdAt: { type: Date, default: Date.now },
-			updatedAt: { type: Date, default: Date.now }, // Changed to Date for consistency
+			tierValue: { type: Number }, // 55, 97, or 149
 
-			// Payment tracking
-			lastPaymentDate: { type: Date },
-			nextBillingDate: { type: Date },
-			trialEndsAt: { type: Date }, // For trial period tracking
+			// Subscription timing
+			currentPeriodStart: { type: Date },
+			currentPeriodEnd: { type: Date },
+			trialStart: { type: Date },
+			trialEnd: { type: Date },
+
+			// Subscription management
+			cancelAtPeriodEnd: { type: Boolean, default: false },
+			canceledAt: { type: Date },
+
+			// Pending changes (for plan upgrades)
+			pendingUpdate: {
+				newTier: { type: String },
+				newPriceId: { type: String },
+				newTierValue: { type: Number },
+				scheduledFor: { type: Date }, // When the change takes effect
+			},
+
+			// Trial tracking
+			hasUsedTrial: { type: Boolean, default: false },
+
+			// Webhook tracking
+			lastWebhookEvent: { type: String },
+			lastWebhookTimestamp: { type: Date },
+
+			createdAt: { type: Date, default: Date.now },
+			updatedAt: { type: Date, default: Date.now },
 		},
 
-		// Billing history for audit trail
+		// Payment history
 		billingHistory: [
 			{
-				event: { type: String }, // webhook event type
+				stripeInvoiceId: { type: String },
+				stripePaymentIntentId: { type: String },
+				event: { type: String },
 				amount: { type: Number },
-				currency: { type: String, default: "USD" },
+				currency: { type: String, default: "usd" },
 				status: { type: String },
-				whopPaymentId: { type: String },
+				tier: { type: String },
 				processedAt: { type: Date, default: Date.now },
 				metadata: { type: mongoose.Schema.Types.Mixed },
 			},
@@ -74,12 +97,16 @@ const UserSchema = new mongoose.Schema(
 		},
 	},
 	{
-		timestamps: true, // Automatic createdAt/updatedAt for the document
+		timestamps: true,
 	}
 );
 
-// Add index for webhook processing efficiency
-UserSchema.index({ email: 1, "subscription.whopMembershipId": 1 });
-UserSchema.index({ "subscription.status": 1, "subscription.expiresAt": 1 });
+// Indexes for efficient queries
+UserSchema.index({ email: 1, "subscription.stripeCustomerId": 1 });
+UserSchema.index({
+	"subscription.status": 1,
+	"subscription.currentPeriodEnd": 1,
+});
+UserSchema.index({ "subscription.stripeSubscriptionId": 1 });
 
 module.exports = mongoose.model("User", UserSchema);

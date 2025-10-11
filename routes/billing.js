@@ -6,18 +6,19 @@ const Billing = require("../models/Billing"); // Create Mongoose Billing model
 router.use(authenticateToken);
 
 // GET /api/v1/billing/history
-router.get("/history", async (req, res) => {
+router.get("/history", authenticateToken, async (req, res) => {
 	try {
-		const billingRecords = await Billing.find({ email: req.user.email })
-			.sort({ timestamp: -1 })
+		// Get billing records for actual payments only
+		const billingRecords = await Billing.find({
+			userId: req.user._id.toString(),
+			// eventType: {
+			//     $in: ['invoice.payment_succeeded', 'invoice.payment_failed']
+			// }
+		})
+			.sort({ createdAt: -1 })
 			.limit(50)
+			.select("-rawEventData") // Exclude heavy raw data
 			.lean();
-
-		// Format dates
-		billingRecords.forEach((record) => {
-			record.createdAt = record.createdAt || new Date(record.timestamp);
-			record.timestamp = new Date(record.timestamp);
-		});
 
 		res.json({
 			success: true,
@@ -26,35 +27,10 @@ router.get("/history", async (req, res) => {
 		});
 	} catch (error) {
 		console.error("Error fetching billing history:", error);
-		res
-			.status(500)
-			.json({ success: false, message: "Failed to fetch billing history" });
-	}
-});
-
-// GET /api/v1/billing/subscription
-router.get("/subscription", async (req, res) => {
-	try {
-		const subscription = req.user.subscription || {};
-		res.json({
-			success: true,
-			subscription: {
-				tier: subscription.tier || "No active subscription",
-				tierValue: subscription.tierValue || 0,
-				status: subscription.status || "inactive",
-				planId: subscription.planId || null,
-				currentPeriodEnd: subscription.currentPeriodEnd || null,
-				isActive: subscription.status === "active",
-			},
+		res.status(500).json({
+			success: false,
+			message: "Failed to fetch billing history",
 		});
-	} catch (error) {
-		console.error("Error fetching subscription:", error);
-		res
-			.status(500)
-			.json({
-				success: false,
-				message: "Failed to fetch subscription details",
-			});
 	}
 });
 

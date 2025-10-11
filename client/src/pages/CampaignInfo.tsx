@@ -13,6 +13,7 @@ import {
 } from "chart.js";
 // @ts-ignore
 import { Line } from "react-chartjs-2";
+import { useConfirm } from "../contexts/ConfirmContext";
 
 ChartJS.register(
 	CategoryScale,
@@ -25,6 +26,7 @@ ChartJS.register(
 );
 
 const CampaignInfo = () => {
+	const { confirm } = useConfirm();
 	const { campaignId } = useParams();
 	const [campaign, setCampaign] = useState<any>(null);
 	const [loading, setLoading] = useState(true);
@@ -96,9 +98,13 @@ const CampaignInfo = () => {
 
 	const deleteCampaign = async () => {
 		try {
-			const confirmed = window.confirm(
-				"Are you sure you want to delete this campaign? This action cannot be undone."
-			);
+			const confirmed = await confirm({
+				title: "Delete Campaign",
+				message:
+					"Are you sure you want to delete this campaign? This action cannot be undone.",
+				variant: "danger",
+				confirmLabel: "Delete",
+			});
 			if (!confirmed) return;
 
 			setLoading(true);

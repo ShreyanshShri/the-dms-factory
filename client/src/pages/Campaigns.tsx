@@ -21,6 +21,7 @@ import type {
 } from "../types/dashboard";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useConfirm } from "../contexts/ConfirmContext";
 
 interface CampaignsState {
 	campaigns: CampaignData[];
@@ -31,6 +32,7 @@ interface CampaignsState {
 }
 
 const Campaigns: React.FC = () => {
+	const { confirm } = useConfirm();
 	const [state, setState] = useState<CampaignsState>({
 		campaigns: [],
 		metrics: {
@@ -173,9 +175,14 @@ const Campaigns: React.FC = () => {
 
 			// Handle delete confirmation
 			if (action === "delete") {
-				const confirmed = window.confirm(
-					"Are you sure you want to delete this campaign? This action cannot be undone."
-				);
+				const confirmed = await confirm({
+					title: "Delete Campaign",
+					message:
+						"Are you sure you want to delete this campaign? This action cannot be undone.",
+					variant: "danger",
+					confirmLabel: "Delete",
+				});
+
 				if (!confirmed) return;
 			}
 

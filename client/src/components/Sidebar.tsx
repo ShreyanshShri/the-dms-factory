@@ -10,6 +10,7 @@ import {
 	X,
 	Phone,
 	ClipboardClock,
+	CreditCard,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -34,18 +35,23 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
 		{ path: "/dashboard/inbox", icon: MessageSquare, label: "Unified Inbox" },
 		// { path: "/dashboard/tools", icon: Wrench, label: "Tools" },
 		{ path: "/dashboard/extension", icon: Wrench, label: "Extension" },
+		{
+			path: "/dashboard/manage-subscription",
+			icon: CreditCard,
+			label: "Manage Subscription",
+		},
 		{ path: "/dashboard/settings", icon: Settings, label: "Settings" },
-		{ path: "/contact", icon: Phone, label: "Contact Us" },
+		{ path: "/dashboard/contact", icon: Phone, label: "Contact Us" },
 		// {
 		// 	path:
 		// 		user?.subscription?.status === "active" ||
-		// 		user?.subscription?.status === "trial"
+		// 		user?.subscription?.status === "trialing"
 		// 			? "/dashboard/manage-subscription"
 		// 			: "/dashboard/payment-plans",
 		// 	icon: Settings,
 		// 	label:
 		// 		user?.subscription?.status === "active" ||
-		// 		user?.subscription?.status === "trial"
+		// 		user?.subscription?.status === "trialing"
 		// 			? "Manage Subsciption"
 		// 			: "Payment Plans",
 		// },

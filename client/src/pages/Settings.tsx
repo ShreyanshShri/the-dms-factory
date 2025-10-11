@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { User, Shield, Bell, Palette, Save } from "lucide-react";
 import { useTheme } from "../contexts/ThemeContext";
 import { userAPI } from "../services/api";
-import { Link } from "react-router-dom";
 
 const SettingsPage: React.FC = () => {
 	const { isDark, toggleTheme } = useTheme();
@@ -147,11 +146,11 @@ const SettingsPage: React.FC = () => {
 							>
 								Privacy & Security
 							</button>
-							<Link to="/billing">
+							{/* <Link to="/billing">
 								<button className="w-full text-left px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
 									Billing
 								</button>
-							</Link>
+							</Link> */}
 						</nav>
 					</div>
 				</div>

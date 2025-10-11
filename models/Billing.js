@@ -1,51 +1,69 @@
-// models/Billing.js
-
 const mongoose = require("mongoose");
 
 const BillingSchema = new mongoose.Schema({
-	userId: { type: String, index: true }, // user id reference if available
+	// User info
+	userId: { type: String, required: true, index: true },
 	email: { type: String, required: true, index: true },
-	transactionId: { type: String, default: null },
-	membershipId: { type: String, default: null },
-	planId: { type: String, default: null },
-	eventType: { type: String, default: "unknown" },
-	status: { type: String, default: "unknown" },
-	amount: { type: Number, default: 0 },
-	currency: { type: String, default: "usd" },
+
+	// Stripe transaction IDs
+	stripeCustomerId: { type: String, required: true, index: true },
+	stripeInvoiceId: { type: String, required: true, unique: true, index: true },
+	stripeCheckoutSessionId: { type: String, default: null, index: true },
+	stripePaymentIntentId: { type: String, default: null, index: true },
+	stripeChargeId: { type: String, default: null },
+	stripePriceId: { type: String, default: null },
+	stripeProductId: { type: String, default: null },
+
+	// Event tracking
+	eventType: {
+		type: String,
+		required: true,
+		index: true,
+	},
+
+	// Payment status - succeeded OR failed
+	status: {
+		type: String,
+		required: true,
+		enum: ["succeeded", "failed", "pending"],
+		index: true,
+	},
+
+	// Transaction amounts
+	amount: { type: Number, required: true },
+	currency: { type: String, required: true, default: "usd" },
 	tier: { type: String, default: "Unknown" },
 	tierValue: { type: Number, default: 0 },
 
+	// Payment attempt tracking
+	attemptCount: { type: Number, default: 0 },
+
+	// Payment method
 	paymentMethod: {
-		type: {
-			type: String,
-			default: null,
-		},
+		type: { type: String, default: null },
 		cardBrand: { type: String, default: null },
 		cardLast4: { type: String, default: null },
 		walletType: { type: String, default: null },
 	},
 
 	billingAddress: { type: mongoose.Schema.Types.Mixed, default: null },
-	refundedAmount: { type: Number, default: 0 },
 
-	createdAt: { type: Date, default: Date.now }, // Recorded time (from webhook or now)
+	// Timestamps
+	createdAt: { type: Date, default: Date.now, index: true },
 	paidAt: { type: Date, default: null },
-	refundedAt: { type: Date, default: null },
-	timestamp: { type: Date, default: Date.now }, // Internal insert timestamp
+	failedAt: { type: Date, default: null },
 
-	billingReason: { type: String, default: null },
+	// URLs
+	invoiceUrl: { type: String, default: null },
+	receiptUrl: { type: String, default: null },
 
-	// Membership specific fields
-	licenseKey: { type: String, default: null },
-	valid: { type: Boolean, default: null },
-	cancelAtPeriodEnd: { type: Boolean, default: null },
-	renewalPeriodStart: { type: Date, default: null },
-	renewalPeriodEnd: { type: Date, default: null },
-	expiresAt: { type: Date, default: null },
-
-	affiliate: { type: mongoose.Schema.Types.Mixed, default: null },
-
-	rawEventData: { type: mongoose.Schema.Types.Mixed, default: {} }, // Store full raw webhook event
+	// Raw data
+	rawEventData: { type: mongoose.Schema.Types.Mixed, default: {} },
 });
+
+// Indexes
+BillingSchema.index({ stripeCustomerId: 1, createdAt: -1 });
+BillingSchema.index({ userId: 1, status: 1 });
+BillingSchema.index({ email: 1, status: 1 });
 
 module.exports = mongoose.model("Billing", BillingSchema);

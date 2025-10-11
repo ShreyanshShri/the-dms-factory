@@ -50,7 +50,7 @@ const isSubscribed = async (req, res, next) => {
 		if (
 			subscription.trialEndsAt &&
 			new Date(subscription.trialEndsAt) < now &&
-			subscription.status === "trial"
+			subscription.status === "trialing"
 		) {
 			console.log("Reason for expiration: trialEndsAt");
 			isExpired = true;
@@ -63,40 +63,40 @@ const isSubscribed = async (req, res, next) => {
 		}
 
 		// Update subscription status if expired and not already marked
-		// if (
-		// 	isExpired &&
-		// 	["active", "trial", "pending"].includes(subscription.status)
-		// ) {
-		// 	needsUpdate = true;
-		// 	console.log("Subsciption", subscription);
-		// 	// Update in database
-		// 	const User = require("../models/User"); // Adjust path as needed
-		// 	await User.updateOne(
-		// 		{ uid: user.uid },
-		// 		{
-		// 			$set: {
-		// 				"subscription.status": "expired",
-		// 				"subscription.lastEvent": "auto_expired",
-		// 				"subscription.updatedAt": now,
-		// 			},
-		// 		}
-		// 	);
+		if (
+			isExpired &&
+			["active", "trialing", "pending"].includes(subscription.status)
+		) {
+			needsUpdate = true;
+			console.log("Subsciption", subscription);
+			// Update in database
+			const User = require("../models/User"); // Adjust path as needed
+			await User.updateOne(
+				{ uid: user.uid },
+				{
+					$set: {
+						"subscription.status": "expired",
+						"subscription.lastEvent": "auto_expired",
+						"subscription.updatedAt": now,
+					},
+				}
+			);
 
-		// 	// Update the current user object for this request
-		// 	subscription.status = "expired";
-		// 	subscription.lastEvent = "auto_expired";
-		// 	subscription.updatedAt = now;
+			// Update the current user object for this request
+			subscription.status = "expired";
+			subscription.lastEvent = "auto_expired";
+			subscription.updatedAt = now;
 
-		// 	console.log(
-		// 		`🔄 Auto-expired subscription for user: ${user.email} from isSubscribed`
-		// 	);
-		// }
+			console.log(
+				`🔄 Auto-expired subscription for user: ${user.email} from isSubscribed`
+			);
+		}
 
 		// Determine final subscription status
 		const finalStatus = isExpired ? "expired" : subscription.status;
 
 		// Check if user has valid subscription
-		const validStatuses = ["active", "trial"];
+		const validStatuses = ["active", "trialing"];
 
 		if (!validStatuses.includes(finalStatus)) {
 			return res.status(403).json({
@@ -252,7 +252,7 @@ const optionalSubscription = async (req, res, next) => {
 		if (
 			subscription.trialEndsAt &&
 			new Date(subscription.trialEndsAt) < now &&
-			subscription.status === "trial"
+			subscription.status === "trialing"
 		) {
 			console.log("Reason for expiration: trialEndsAt");
 			isExpired = true;
@@ -268,54 +268,54 @@ const optionalSubscription = async (req, res, next) => {
 		// ADD THIS: Update database if expired (same as isSubscribed)
 		if (
 			isExpired &&
-			["active", "trial", "pending"].includes(subscription.status)
+			["active", "trialing", "pending"].includes(subscription.status)
 		) {
-			// console.log("Subscription: ", subscription);
-			// const User = require("../models/User");
-			// await User.updateOne(
-			// 	{ uid: req.user.uid },
-			// 	{
-			// 		$set: {
-			// 			"subscription.status": "expired",
-			// 			"subscription.lastEvent": "auto_expired",
-			// 			"subscription.updatedAt": now,
-			// 		},
-			// 	}
-			// );
-			// // Update current user object
-			// subscription.status = "expired";
-			// subscription.lastEvent = "auto_expired";
-			// subscription.updatedAt = now;
-			// console.log(
-			// 	`🔄 Auto-expired subscription for user: ${req.user.email} from optionalSubscription`
-			// );
+			console.log("Subscription: ", subscription);
+			const User = require("../models/User");
+			await User.updateOne(
+				{ uid: req.user.uid },
+				{
+					$set: {
+						"subscription.status": "expired",
+						"subscription.lastEvent": "auto_expired",
+						"subscription.updatedAt": now,
+					},
+				}
+			);
+			// Update current user object
+			subscription.status = "expired";
+			subscription.lastEvent = "auto_expired";
+			subscription.updatedAt = now;
+			console.log(
+				`🔄 Auto-expired subscription for user: ${req.user.email} from optionalSubscription`
+			);
 		}
 
-		// const finalStatus = isExpired ? "expired" : subscription.status;
-		// const isValid = ["active", "trial"].includes(finalStatus);
+		const finalStatus = isExpired ? "expired" : subscription.status;
+		const isValid = ["active", "trialing"].includes(finalStatus);
 
-		// req.subscription = isValid
-		// 	? {
-		// 			...subscription,
-		// 			status: finalStatus,
-		// 			isValid: true,
-		// 			timeRemaining: subscription.expiresAt
-		// 				? Math.max(
-		// 						0,
-		// 						new Date(subscription.expiresAt).getTime() - now.getTime()
-		// 				  )
-		// 				: null,
-		// 			daysRemaining: subscription.expiresAt
-		// 				? Math.max(
-		// 						0,
-		// 						Math.ceil(
-		// 							(new Date(subscription.expiresAt).getTime() - now.getTime()) /
-		// 								(1000 * 60 * 60 * 24)
-		// 						)
-		// 				  )
-		// 				: null,
-		// 	  }
-		// 	: null;
+		req.subscription = isValid
+			? {
+					...subscription,
+					status: finalStatus,
+					isValid: true,
+					timeRemaining: subscription.expiresAt
+						? Math.max(
+								0,
+								new Date(subscription.expiresAt).getTime() - now.getTime()
+						  )
+						: null,
+					daysRemaining: subscription.expiresAt
+						? Math.max(
+								0,
+								Math.ceil(
+									(new Date(subscription.expiresAt).getTime() - now.getTime()) /
+										(1000 * 60 * 60 * 24)
+								)
+						  )
+						: null,
+			  }
+			: null;
 
 		next();
 	} catch (error) {
@@ -342,13 +342,13 @@ const hasValidSubscription = (req) => {
 			new Date(subscription.renewalPeriodEnd) < now) ||
 		(subscription.trialEndsAt &&
 			new Date(subscription.trialEndsAt) < now &&
-			subscription.status === "trial") ||
+			subscription.status === "trialing") ||
 		subscription.valid === false
 	) {
 		return false;
 	}
 
-	return ["active", "trial"].includes(subscription.status);
+	return ["active", "trialing"].includes(subscription.status);
 };
 
 module.exports = {
