@@ -14,6 +14,90 @@ const Account = require("../models/Account");
 
 router.use(authenticateToken);
 
+router.get("/campaigns", async (req, res) => {
+	try {
+		const campaigns = await Campaign.find({ userId: req.user.uid }).lean();
+		const campaignIds = campaigns.map((c) => c._id.toString());
+
+		// Get ALL stats in 2 bulk queries (combined analytics)
+		const [accountsData, analyticsData] = await Promise.all([
+			// Bulk accounts query - group by campaign
+			Account.aggregate([
+				{
+					$match: {
+						userId: req.user.uid,
+						currentCampaignId: { $in: campaignIds },
+					},
+				},
+				{
+					$group: {
+						_id: "$currentCampaignId",
+						count: { $sum: 1 },
+					},
+				},
+			]),
+
+			// Combined analytics - sum counters by campaign (1 query instead of 2)
+			Analytics.aggregate([
+				{
+					$match: {
+						campaignID: { $in: campaignIds },
+					},
+				},
+				{
+					$group: {
+						_id: "$campaignID",
+						dmsSent: { $sum: "$initialDMsSent" },
+						replies: { $sum: "$messagesReceived" },
+					},
+				},
+			]),
+		]);
+
+		// Convert arrays to maps for O(1) lookup
+		const accountsMap = Object.fromEntries(
+			accountsData.map((item) => [item._id, item.count])
+		);
+		const analyticsMap = Object.fromEntries(
+			analyticsData.map((item) => [
+				item._id,
+				{ dmsSent: item.dmsSent, replies: item.replies },
+			])
+		);
+
+		// Map stats to campaigns
+		const responseCampaigns = campaigns.map((campaign) => {
+			const campaignId = campaign._id.toString();
+			const analytics = analyticsMap[campaignId] || { dmsSent: 0, replies: 0 };
+
+			return {
+				id: campaign._id,
+				...campaign,
+				leads: [],
+				leadsCount: campaign.totalLeads,
+				stats: {
+					accounts: accountsMap[campaignId] || 0,
+					dmsSent: analytics.dmsSent,
+					replies: analytics.replies,
+				},
+			};
+		});
+
+		res.json({
+			name: req.user.name || "User",
+			isSubscribed:
+				req.user.subscription.status === "active" ||
+				req.user.subscription.status === "trialing",
+			campaigns: responseCampaigns,
+		});
+	} catch (error) {
+		console.error("Error fetching campaigns:", error);
+		res
+			.status(500)
+			.json({ success: false, message: "Failed to fetch campaigns" });
+	}
+});
+
 // Get overall dashboard stats
 // CHANGED: Now queries Analytics with date field instead of Firestore timestamps
 router.get("/stats", async (req, res) => {

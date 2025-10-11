@@ -431,7 +431,7 @@ const CRM = () => {
 																)}
 																<div className="flex items-center space-x-2 mt-2 text-xs text-gray-400">
 																	<Calendar className="w-3 h-3" />
-																	<span>{contact?.last_message}</span>
+																	{contact?.last_message}
 																</div>
 															</div>
 														</div>
@@ -474,6 +474,7 @@ const CRM = () => {
 																		<div className="w-8 h-8 bg-primary-100 dark:bg-primary-900 rounded-full flex items-center justify-center">
 																			<User className="w-4 h-4 text-primary-600 dark:text-primary-400" />
 																		</div>
+
 																		<div className="flex-1 min-w-0">
 																			<div className="font-medium text-gray-900 dark:text-white truncate">
 																				{contact.name || contact.username}
@@ -486,12 +487,12 @@ const CRM = () => {
 																					${contact.crm.value.toLocaleString()}
 																				</div>
 																			)}
-																			<div className="flex items-center space-x-2 mt-2 text-xs text-gray-400">
-																				<Calendar className="w-3 h-3" />
-																				<span>{contact?.last_message}</span>
+																			<div className="mt-2 text-xs text-gray-400 break-words">
+																				{contact?.last_message}
 																			</div>
 																		</div>
 																	</div>
+
 																	{contact.crm?.notes && (
 																		<div className="mt-2 text-xs text-gray-600 dark:text-gray-400 truncate">
 																			{contact.crm.notes}

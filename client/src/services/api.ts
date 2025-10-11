@@ -202,6 +202,10 @@ export const chatAPI = {
 
 // Dashboard API with proper TypeScript types
 export const dashboardAPI = {
+	getCampaigns: async (): Promise<any> => {
+		return await axiosInstance.get("/dashboard/campaigns");
+	},
+
 	getStats: async (): Promise<ApiResponse<DashboardStats>> => {
 		return await axiosInstance.get("/dashboard/stats");
 	},

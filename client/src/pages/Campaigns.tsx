@@ -13,7 +13,7 @@ import {
 	Twitter,
 	MoreHorizontal,
 } from "lucide-react";
-import { campaignAPI } from "../services/api";
+import { campaignAPI, dashboardAPI } from "../services/api";
 import type {
 	CampaignData,
 	CampaignMetrics,
@@ -78,7 +78,7 @@ const Campaigns: React.FC = () => {
 			setState((prev) => ({ ...prev, error: null }));
 
 			// Fetch campaigns data
-			const campaignsRes = await campaignAPI.getCampaigns();
+			const campaignsRes = await dashboardAPI.getCampaigns();
 			if (campaignsRes?.campaigns) {
 				const campaigns = campaignsRes?.campaigns;
 
