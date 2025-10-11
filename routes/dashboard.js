@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const { authenticateToken } = require("../middleware/auth");
-// const { subscribed } = require("../middleware/subscribed");
 const { createResponse } = require("../utils/helpers");
 const { HTTP_STATUS } = require("../utils/my_constants");
 
@@ -15,18 +14,8 @@ const Account = require("../models/Account");
 
 router.use(authenticateToken);
 
-function dateToFirestoreSeconds(date) {
-	return Math.floor(date.getTime() / 1000);
-}
-function toFirestoreTimestamp(dateInput) {
-	const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
-	return {
-		_seconds: Math.floor(date.getTime() / 1000),
-		_nanoseconds: (date.getTime() % 1000) * 1000000,
-	};
-}
-
 // Get overall dashboard stats
+// CHANGED: Now queries Analytics with date field instead of Firestore timestamps
 router.get("/stats", async (req, res) => {
 	try {
 		const userId = req.user.uid;
@@ -46,27 +35,25 @@ router.get("/stats", async (req, res) => {
 		const activeAccounts = accounts.filter((a) => a.status === "active").length;
 		const pausedAccounts = accounts.filter((a) => a.status === "paused").length;
 
-		const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-		const analyticsDocs = await Analytics.find({
-			"createdAt._seconds": {
-				$gte: dateToFirestoreSeconds(twentyFourHoursAgo),
-			},
-		});
+		// CHANGED: Query today's date in YYYY-MM-DD format
+		const today = new Date().toISOString().split("T")[0];
+		const campaignIds = campaigns.map((c) => String(c._id));
 
-		const todayMessages = analyticsDocs.filter(
-			(d) =>
-				campaigns.some((c) => String(c._id) === d.campaignID) &&
-				["initialdmsent", "followup"].includes(d.status)
+		const todayAnalytics = await Analytics.find({
+			campaignID: { $in: campaignIds },
+			date: today,
+		}).lean();
+
+		// CHANGED: Sum counters from Analytics documents
+		const dmsSentToday = todayAnalytics.reduce(
+			(sum, a) => sum + (a.initialDMsSent || 0) + (a.followUpsSent || 0),
+			0
+		);
+		const repliesToday = todayAnalytics.reduce(
+			(sum, a) => sum + (a.messagesReceived || 0),
+			0
 		);
 
-		const todayReplies = analyticsDocs.filter(
-			(d) =>
-				campaigns.some((c) => String(c._id) === d.campaignID) &&
-				d.status === "replyreceived"
-		);
-
-		const dmsSentToday = todayMessages.length;
-		const repliesToday = todayReplies.length;
 		const replyRate =
 			dmsSentToday > 0 ? ((repliesToday / dmsSentToday) * 100).toFixed(1) : 0;
 
@@ -92,10 +79,11 @@ router.get("/stats", async (req, res) => {
 });
 
 // Get performance data for charts (last X days)
+// CHANGED: Now queries Analytics with date strings instead of Firestore timestamps
 router.get("/performance", async (req, res) => {
 	try {
 		const userId = req.user.uid;
-		const { timeRange = 7 } = req.query; // days
+		const { timeRange = 7 } = req.query;
 		const daysAgo = parseInt(timeRange);
 
 		const campaigns = await Campaign.find({ userId }).lean();
@@ -109,51 +97,43 @@ router.get("/performance", async (req, res) => {
 
 		const campaignIds = campaigns.map((c) => String(c._id));
 
-		// Fix: Convert to Firestore timestamp seconds format
-		const startDateSeconds = dateToFirestoreSeconds(
-			new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
-		);
-
-		// Fix: Query using Firestore timestamp _seconds field
-		const analyticsDocs = await Analytics.find({
-			"createdAt._seconds": { $gte: startDateSeconds },
-		})
-			.sort({ "createdAt._seconds": 1 })
-			.lean();
-
-		// Create daily data structure - fix the date generation
-		const dailyData = {};
+		// CHANGED: Generate date range in YYYY-MM-DD format
+		const dateStrings = [];
 		const labels = [];
 
 		for (let i = daysAgo - 1; i >= 0; i--) {
 			const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-			const dayKey = date.toLocaleDateString("en-US", { weekday: "short" });
-			labels.push(dayKey);
-			dailyData[dayKey] = { messages: 0, replies: 0 };
+			dateStrings.push(date.toISOString().split("T")[0]);
+			labels.push(date.toLocaleDateString("en-US", { weekday: "short" }));
 		}
 
-		// Fix: Process analytics docs with Firestore timestamp conversion
-		analyticsDocs.forEach((doc) => {
-			if (!campaignIds.includes(doc.campaignID)) return;
+		// CHANGED: Query Analytics with date range
+		const analyticsRecords = await Analytics.find({
+			campaignID: { $in: campaignIds },
+			date: { $in: dateStrings },
+		}).lean();
 
-			// Convert Firestore timestamp to JavaScript Date
-			const docDate = new Date(doc.createdAt._seconds * 1000);
-			const dayKey = docDate.toLocaleDateString("en-US", {
-				weekday: "short",
-			});
+		// CHANGED: Map date -> counters
+		const dailyData = {};
+		dateStrings.forEach((dateStr, idx) => {
+			dailyData[dateStr] = {
+				messages: 0,
+				replies: 0,
+				label: labels[idx],
+			};
+		});
 
-			if (!dailyData[dayKey]) return;
-
-			if (["initialdmsent", "followup"].includes(doc.status)) {
-				dailyData[dayKey].messages++;
-			} else if (doc.status === "replyreceived") {
-				dailyData[dayKey].replies++;
+		analyticsRecords.forEach((record) => {
+			if (dailyData[record.date]) {
+				dailyData[record.date].messages +=
+					(record.initialDMsSent || 0) + (record.followUpsSent || 0);
+				dailyData[record.date].replies += record.messagesReceived || 0;
 			}
 		});
 
-		// Generate final data arrays in correct order
-		const messagesData = labels.map((label) => dailyData[label].messages);
-		const repliesData = labels.map((label) => dailyData[label].replies);
+		// Generate final arrays
+		const messagesData = dateStrings.map((d) => dailyData[d].messages);
+		const repliesData = dateStrings.map((d) => dailyData[d].replies);
 
 		res.json(
 			createResponse(true, {
@@ -187,20 +167,23 @@ router.get("/performance", async (req, res) => {
 });
 
 // Get campaign rankings (top 5 campaigns last 7 days)
+// CHANGED: Now queries Analytics with date strings instead of Firestore timestamps
 router.get("/campaign-rankings", async (req, res) => {
 	try {
 		const userId = req.user.uid;
 
 		const campaigns = await Campaign.find({ userId }).lean();
 
-		// Fix: Convert to Firestore timestamp seconds format
-		const weekAgoSeconds = dateToFirestoreSeconds(
-			new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-		);
+		// CHANGED: Generate last 7 days date range
+		const dateStrings = [];
+		for (let i = 6; i >= 0; i--) {
+			const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+			dateStrings.push(date.toISOString().split("T")[0]);
+		}
 
-		// Fix: Query using Firestore timestamp _seconds field
-		const analyticsDocs = await Analytics.find({
-			"createdAt._seconds": { $gte: weekAgoSeconds },
+		// CHANGED: Query Analytics with date range
+		const analyticsRecords = await Analytics.find({
+			date: { $in: dateStrings },
 		}).lean();
 
 		// Initialize campaign stats
@@ -211,20 +194,17 @@ router.get("/campaign-rankings", async (req, res) => {
 				platform: c.platform,
 				dms: 0,
 				replies: 0,
-				replyRate: 0, // Optional: calculate reply rate
+				replyRate: 0,
 			};
 		});
 
-		// Process analytics docs
-		analyticsDocs.forEach((doc) => {
-			const cStat = campaignStats[doc.campaignID];
+		// CHANGED: Sum counters from Analytics records
+		analyticsRecords.forEach((record) => {
+			const cStat = campaignStats[record.campaignID];
 			if (!cStat) return;
 
-			if (["initialdmsent", "followup"].includes(doc.status)) {
-				cStat.dms++;
-			} else if (doc.status === "replyreceived") {
-				cStat.replies++;
-			}
+			cStat.dms += (record.initialDMsSent || 0) + (record.followUpsSent || 0);
+			cStat.replies += record.messagesReceived || 0;
 		});
 
 		// Calculate reply rates and prepare rankings
@@ -236,7 +216,7 @@ router.get("/campaign-rankings", async (req, res) => {
 						? ((campaign.replies / campaign.dms) * 100).toFixed(1) + "%"
 						: "0%",
 			}))
-			.sort((a, b) => b.dms - a.dms) // Sort by DMs sent (you could also sort by replies or reply rate)
+			.sort((a, b) => b.dms - a.dms)
 			.slice(0, 5);
 
 		res.json(createResponse(true, rankings));
@@ -249,69 +229,19 @@ router.get("/campaign-rankings", async (req, res) => {
 });
 
 // Get recent activity (limit by query param)
+// ⚠️ WARNING: This endpoint CANNOT work with the new Analytics schema
+// The new schema only stores daily aggregated counters, not individual events with timestamps/usernames
+// You have 3 options:
+// 1. Remove this endpoint completely
+// 2. Keep it but return empty array
+// 3. Store detailed events in a separate collection if you need this feature
 router.get("/recent-activity", async (req, res) => {
 	try {
-		const userId = req.user.uid;
-		const limit = parseInt(req.query.limit) || 10;
+		// Option 2: Return empty array since we don't have individual event data
+		res.json(createResponse(true, []));
 
-		const campaigns = await Campaign.find({ userId }).lean();
-		const campaignIds = campaigns.map((c) => String(c._id));
-		const campaignNames = {};
-		campaigns.forEach((c) => {
-			campaignNames[String(c._id)] = c.name;
-		});
-
-		if (campaignIds.length === 0) return res.json(createResponse(true, []));
-
-		// Fix: Sort by Firestore timestamp _seconds field
-		const analyticsDocs = await Analytics.find({})
-			.sort({ "createdAt._seconds": -1 }) // Sort by newest first
-			.limit(limit * 2) // Get extra docs to account for filtering
-			.lean();
-
-		const activities = [];
-		analyticsDocs.some((doc) => {
-			if (campaignIds.includes(doc.campaignID) && activities.length < limit) {
-				let action = "";
-				if (doc.status === "initialdmsent") {
-					action = `Sent initial DM in ${campaignNames[doc.campaignID]}`;
-				} else if (doc.status === "followup") {
-					action = `Sent follow-up in ${campaignNames[doc.campaignID]}`;
-				} else if (doc.status === "replyreceived") {
-					action = `Received reply in ${campaignNames[doc.campaignID]}`;
-				}
-
-				if (action) {
-					// Fix: Convert Firestore timestamp to JavaScript Date
-					const time = new Date(doc.createdAt._seconds * 1000);
-					const now = new Date();
-					const diffMinutes = Math.floor((now - time) / (1000 * 60));
-
-					let timeStr = "";
-					if (diffMinutes < 1) {
-						timeStr = "Just now";
-					} else if (diffMinutes < 60) {
-						timeStr = `${diffMinutes}m ago`;
-					} else if (diffMinutes < 1440) {
-						timeStr = `${Math.floor(diffMinutes / 60)}h ago`;
-					} else {
-						timeStr = `${Math.floor(diffMinutes / 1440)}d ago`;
-					}
-
-					activities.push({
-						action,
-						time: timeStr,
-						platform: doc.platform || "instagram",
-						username: doc.username || "Unknown", // Optional: include username
-						timestamp: doc.createdAt._seconds, // Optional: include raw timestamp for sorting
-					});
-				}
-				return false; // Continue processing
-			}
-			return false; // Continue processing
-		});
-
-		res.json(createResponse(true, activities));
+		// NOTE: If you need this feature, you'll need to store individual events
+		// in a separate collection alongside the aggregated Analytics data
 	} catch (error) {
 		console.error("Error fetching recent activity:", error);
 		res

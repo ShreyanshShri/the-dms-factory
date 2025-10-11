@@ -655,42 +655,56 @@ router.put("/set-lead-status", async (req, res) => {
 });
 
 router.post("/analytics", async (req, res) => {
-	console.log("req.body", req.body);
 	try {
-		const {
-			campaignID,
-			accountID,
-			leadID,
-			username,
-			message,
-			status,
-			platform,
-		} = req.body;
+		const { campaignID, accountID, leadID, status, message } = req.body;
 
-		if (!campaignID || !accountID) {
+		if (!campaignID) {
 			return res.status(400).json({
 				success: false,
-				message: "Missing required parameters",
+				message: "Missing campaignID",
 			});
 		}
 
 		const nowSec = Math.floor(Date.now() / 1000);
+		const dateString = new Date().toISOString().split("T")[0];
 
-		const analyticsData = new Analytics({
-			campaignID,
-			accountID,
-			leadID: leadID || "",
-			username: username || "",
-			message: message || "",
-			status: status || "unknown",
-			platform: "twitter",
-			timestamp: { _seconds: nowSec, _nanoseconds: 0 },
-			createdAt: { _seconds: nowSec, _nanoseconds: 0 },
-		});
+		// Update daily counters
+		const incrementFields = {};
 
-		await analyticsData.save();
+		if (status === "initialdmsent") {
+			incrementFields.initialDMsSent = 1;
+		} else if (status === "followup") {
+			incrementFields.followUpsSent = 1;
+		} else if (status === "failed") {
+			incrementFields.messagesFailed = 1;
+		} else if (status === "received") {
+			incrementFields.messagesReceived = 1;
+		} else if (status === "pending") {
+			incrementFields.messagesPending = 1;
+		}
 
-		// Update lead status accordingly
+		if (Object.keys(incrementFields).length > 0) {
+			const setFields = {
+				lastUpdated: new Date(),
+				platform: "twitter",
+			};
+
+			// Only set initialDM if this is an initial DM
+			if (status === "initialdmsent" && message) {
+				setFields.initialDM = message;
+			}
+
+			await Analytics.findOneAndUpdate(
+				{ campaignID, date: dateString },
+				{
+					$inc: incrementFields,
+					$set: setFields,
+				},
+				{ upsert: true }
+			);
+		}
+
+		// Update lead status
 		if (leadID) {
 			await Lead.findByIdAndUpdate(leadID, {
 				status: status,
@@ -699,8 +713,9 @@ router.post("/analytics", async (req, res) => {
 			});
 		}
 
-		if (["initialdmsent", "followup"].includes(status)) {
-			// await RateService.recordMessageSent(accountID, campaignID);
+		// Rate limiting
+		if (["initialdmsent", "followup"].includes(status) && accountID) {
+			await RateService.recordMessageSent(accountID, campaignID);
 		}
 
 		return res.json({ success: true });

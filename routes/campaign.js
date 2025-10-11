@@ -895,42 +895,57 @@ router.post("/check-response", async (req, res) => {
 
 // POST /campaign/analytics
 router.post("/analytics", async (req, res) => {
-	console.log("req.body", req.body);
 	try {
-		const {
-			campaignID,
-			accountID,
-			leadID,
-			username,
-			message,
-			status,
-			platform,
-		} = req.body;
+		const { campaignID, accountID, leadID, status, platform, message } =
+			req.body;
 
-		if (!campaignID || !accountID) {
+		if (!campaignID) {
 			return res.status(400).json({
 				success: false,
-				message: "Missing required parameters",
+				message: "Missing campaignID",
 			});
 		}
 
 		const nowSec = Math.floor(Date.now() / 1000);
+		const dateString = new Date().toISOString().split("T")[0];
 
-		const analyticsData = new Analytics({
-			campaignID,
-			accountID,
-			leadID: leadID || "",
-			username: username || "",
-			message: message || "",
-			status: status || "unknown",
-			platform: platform || "instagram",
-			timestamp: { _seconds: nowSec, _nanoseconds: 0 },
-			createdAt: { _seconds: nowSec, _nanoseconds: 0 },
-		});
+		// Update daily counters
+		const incrementFields = {};
 
-		await analyticsData.save();
+		if (status === "initialdmsent") {
+			incrementFields.initialDMsSent = 1;
+		} else if (status === "followup") {
+			incrementFields.followUpsSent = 1;
+		} else if (status === "failed") {
+			incrementFields.messagesFailed = 1;
+		} else if (status === "received") {
+			incrementFields.messagesReceived = 1;
+		} else if (status === "pending") {
+			incrementFields.messagesPending = 1;
+		}
 
-		// Update lead status accordingly
+		if (Object.keys(incrementFields).length > 0) {
+			const setFields = {
+				lastUpdated: new Date(),
+				platform: platform || "instagram",
+			};
+
+			// Only set initialDM if this is an initial DM
+			if (status === "initialdmsent" && message) {
+				setFields.initialDM = message;
+			}
+
+			await Analytics.findOneAndUpdate(
+				{ campaignID, date: dateString },
+				{
+					$inc: incrementFields,
+					$set: setFields,
+				},
+				{ upsert: true }
+			);
+		}
+
+		// Update lead status
 		if (leadID) {
 			await Lead.findByIdAndUpdate(leadID, {
 				status: status,
@@ -939,7 +954,8 @@ router.post("/analytics", async (req, res) => {
 			});
 		}
 
-		if (["initialdmsent", "followup"].includes(status)) {
+		// Rate limiting
+		if (["initialdmsent", "followup"].includes(status) && accountID) {
 			await RateService.recordMessageSent(accountID, campaignID);
 		}
 
@@ -956,10 +972,16 @@ router.post("/analytics", async (req, res) => {
 // GET /campaign/analytics
 router.get("/analytics", async (req, res) => {
 	try {
-		const { campaignID, accountID, timeframe = "today" } = req.query;
+		const { campaignID, timeframe = "today" } = req.query;
+
+		if (!campaignID) {
+			return res.status(400).json({
+				success: false,
+				message: "Missing campaignID",
+			});
+		}
 
 		const now = new Date();
-
 		let start, end;
 
 		switch (timeframe) {
@@ -983,39 +1005,41 @@ router.get("/analytics", async (req, res) => {
 				break;
 		}
 
-		const startTimestamp = {
-			_seconds: Math.floor(start.getTime() / 1000),
-			_nanoseconds: 0,
-		};
-		const endTimestamp = {
-			_seconds: Math.floor(end.getTime() / 1000),
-			_nanoseconds: 0,
-		};
+		const startDate = start.toISOString().split("T")[0];
+		const endDate = end.toISOString().split("T")[0];
 
-		// Build queries
-		let analyticsQuery = {
-			"createdAt._seconds": {
-				$gte: startTimestamp._seconds,
-				$lt: endTimestamp._seconds,
-			},
-		};
+		// Fetch analytics records
+		const records = await Analytics.find({
+			campaignID,
+			date: { $gte: startDate, $lt: endDate },
+		});
 
-		if (campaignID) analyticsQuery.campaignID = campaignID;
-		if (accountID) analyticsQuery.accountID = accountID;
+		// Sum counters
+		const totalInitialDMsSent = records.reduce(
+			(sum, r) => sum + (r.initialDMsSent || 0),
+			0
+		);
+		const totalFollowUpsSent = records.reduce(
+			(sum, r) => sum + (r.followUpsSent || 0),
+			0
+		);
+		const totalMessagesFailed = records.reduce(
+			(sum, r) => sum + (r.messagesFailed || 0),
+			0
+		);
+		const totalMessagesReceived = records.reduce(
+			(sum, r) => sum + (r.messagesReceived || 0),
+			0
+		);
+		const totalMessagesPending = records.reduce(
+			(sum, r) => sum + (r.messagesPending || 0),
+			0
+		);
 
-		const analyticsRecords = await Analytics.find(analyticsQuery);
+		const totalMessagesSent = totalInitialDMsSent + totalFollowUpsSent;
 
-		let totalMessagesSent = analyticsRecords.filter((r) =>
-			["initialdmsent", "followup"].includes(r.status)
-		).length;
-
-		// Build leads query for conversion calculation
-		let leadsQuery = {};
-		if (campaignID) leadsQuery.campaignId = campaignID;
-		if (accountID) leadsQuery.assignedAccount = accountID;
-
-		const leadsRecords = await Lead.find(leadsQuery);
-
+		// Leads conversion
+		const leadsRecords = await Lead.find({ campaignId: campaignID });
 		const totalLeads = leadsRecords.length;
 		const convertedLeads = leadsRecords.filter(
 			(l) => ["initialdmsent", "followup"].includes(l.status) || l.sent
@@ -1025,20 +1049,21 @@ router.get("/analytics", async (req, res) => {
 			totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(2) : 0;
 
 		const messagesByStatus = {
-			initialdmsent: analyticsRecords.filter(
-				(r) => r.status === "initialdmsent"
-			).length,
-			followup: analyticsRecords.filter((r) => r.status === "followup").length,
-			unknown: analyticsRecords.filter((r) => r.status === "unknown").length,
+			initialdmsent: totalInitialDMsSent,
+			followup: totalFollowUpsSent,
+			failed: totalMessagesFailed,
+			received: totalMessagesReceived,
+			pending: totalMessagesPending,
 		};
 
-		const messagesByPlatform = {
-			instagram: analyticsRecords.filter((r) => r.platform === "instagram")
-				.length,
-			twitter: analyticsRecords.filter((r) => r.platform === "twitter").length,
-		};
+		const messagesByPlatform = records.reduce((acc, r) => {
+			const platform = r.platform || "instagram";
+			const msgCount = (r.initialDMsSent || 0) + (r.followUpsSent || 0);
+			acc[platform] = (acc[platform] || 0) + msgCount;
+			return acc;
+		}, {});
 
-		const response = {
+		return res.json({
 			success: true,
 			data: {
 				timeframe,
@@ -1047,17 +1072,17 @@ router.get("/analytics", async (req, res) => {
 					end: end.toISOString(),
 				},
 				totalMessagesSent,
+				messagesFailed: totalMessagesFailed,
+				messagesReceived: totalMessagesReceived,
+				messagesPending: totalMessagesPending,
 				leadConversionRate: parseFloat(conversionRate),
 				totalLeads,
 				convertedLeads,
 				messagesByStatus,
 				messagesByPlatform,
-				campaignID: campaignID || "all",
-				accountID: accountID || "all",
+				campaignID,
 			},
-		};
-
-		return res.json(response);
+		});
 	} catch (error) {
 		console.error("Error fetching analytics:", error);
 		return res.status(500).json({
@@ -1070,50 +1095,65 @@ router.get("/analytics", async (req, res) => {
 // GET /api/v1/campaign/analytics/trend - Get analytics trend data
 router.get("/analytics/trend", async (req, res) => {
 	try {
-		const { campaignID, accountID, timeframe = "week" } = req.query;
+		const { campaignID, timeframe = "week" } = req.query;
+
+		if (!campaignID) {
+			return res.status(400).json({
+				success: false,
+				message: "Missing campaignID",
+			});
+		}
 
 		const now = new Date();
 		const days = timeframe === "today" ? 1 : timeframe === "week" ? 7 : 31;
+
 		const start = new Date(now);
 		start.setDate(now.getDate() - (days - 1));
 		start.setHours(0, 0, 0, 0);
 
-		// Build query
-		const query = {
-			"createdAt._seconds": {
-				$gte: Math.floor(start.getTime() / 1000),
-				$lt: Math.floor(now.getTime() / 1000),
-			},
-			status: { $in: ["initialdmsent", "followup"] },
-		};
-		if (campaignID) query.campaignID = campaignID;
-		if (accountID) query.accountID = accountID;
+		// Generate date range
+		const dateStrings = [];
+		const labels = [];
 
-		const snap = await Analytics.find(query);
+		for (let i = 0; i < days; i++) {
+			const d = new Date(start);
+			d.setDate(start.getDate() + i);
 
-		// Group counts by day
-		const counts = Array(days).fill(0);
-		const labels = Array(days)
-			.fill("")
-			.map((_, i) => {
-				const d = new Date(start);
-				d.setDate(start.getDate() + i);
-				return d.toLocaleDateString("en-US", {
+			dateStrings.push(d.toISOString().split("T")[0]);
+			labels.push(
+				d.toLocaleDateString("en-US", {
 					month: "short",
 					day: "numeric",
-				});
-			});
+				})
+			);
+		}
 
-		snap.forEach((doc) => {
-			const d = new Date(doc.createdAt._seconds * 1000);
-			const idx = Math.floor((d - start) / 86400000);
-			if (idx >= 0 && idx < days) counts[idx]++;
+		// Fetch records
+		const records = await Analytics.find({
+			campaignID,
+			date: { $in: dateStrings },
 		});
 
-		res.json({ success: true, data: { labels, counts, timeframe } });
+		// Map date -> count
+		const dateCountMap = {};
+		records.forEach((r) => {
+			const msgCount = (r.initialDMsSent || 0) + (r.followUpsSent || 0);
+			dateCountMap[r.date] = (dateCountMap[r.date] || 0) + msgCount;
+		});
+
+		// Fill counts array
+		const counts = dateStrings.map((dateStr) => dateCountMap[dateStr] || 0);
+
+		res.json({
+			success: true,
+			data: { labels, counts, timeframe },
+		});
 	} catch (err) {
 		console.error("trend-analytics error:", err);
-		res.status(500).json({ success: false, message: "Trend fetch failed" });
+		res.status(500).json({
+			success: false,
+			message: "Trend fetch failed",
+		});
 	}
 });
 

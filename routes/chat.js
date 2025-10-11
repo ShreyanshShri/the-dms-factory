@@ -333,24 +333,12 @@ router.post("/webhook", async (req, res) => {
 						if (lead) {
 							console.log("lead", lead);
 							campaignId = lead.campaignId;
-							if (campaignId && lead._id) {
-								const campaignDoc = await Campaign.findById(campaignId).exec();
-								context = campaignDoc?.context || "";
-								const analytics = await Analytics.findOne({
-									campaignID: campaignId,
-									leadID: lead._id,
-									status: "initialdmsent",
-								});
-
-								if (analytics) {
-									initial_message = {
-										sender_id: recipient_id,
-										recipient_id: sender_id,
-										text: analytics.message,
-										timestamp: analytics.createdAt._seconds,
-									};
-								}
-							}
+							initial_message = {
+								sender_id: recipient_id,
+								recipient_id: sender_id,
+								text: lead.initialDM,
+								timestamp: new Date(),
+							};
 						}
 					}
 
@@ -388,18 +376,21 @@ router.post("/webhook", async (req, res) => {
 						client_username &&
 						client_username !== ""
 					) {
-						const now = toFirestoreTimestamp(new Date());
-						const analytics = new Analytics({
-							campaignID: campaignId,
-							leadID: lead._id,
-							username: client_username,
-							message: msgText,
-							status: "replyreceived",
-							platform: "instagram",
-							timestamp: now,
-							createdAt: now,
-						});
-						await analytics.save();
+						const dateString = new Date().toISOString().split("T")[0];
+
+						await Analytics.findOneAndUpdate(
+							{
+								campaignID: campaignId,
+								date: dateString,
+							},
+							{
+								$inc: { messagesReceived: 1 },
+								$set: {
+									lastUpdated: new Date(),
+								},
+							},
+							{ upsert: true }
+						);
 					}
 				}
 				// Append message (problematic)

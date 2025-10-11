@@ -18,6 +18,7 @@ const LeadSchema = new mongoose.Schema({
 	status: { type: String, default: "ready" },
 	previousAccount: { type: String },
 	reassignmentCount: { type: Number, default: 0 },
+	initialDM: { type: String },
 });
 
 module.exports = mongoose.model("Lead", LeadSchema);
