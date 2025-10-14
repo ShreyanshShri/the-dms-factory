@@ -1357,4 +1357,72 @@ router.put("/:campaignId", async (req, res) => {
 	}
 });
 
+router.get("/contexts/list-contexts", authenticateToken, async (req, res) => {
+	try {
+		const campaigns = await Campaign.find({ userId: req.user.uid }).lean();
+		return res.json({
+			success: true,
+			contexts: campaigns.map((c) => ({
+				_id: c._id,
+				name: c.name,
+				context: c.context,
+			})),
+		});
+	} catch (error) {
+		console.error("Error fetching campaigns:", error);
+		return res
+			.status(500)
+			.json(createResponse(false, null, "Failed to fetch campaigns"));
+	}
+});
+
+router.post("/contexts/update-context", authenticateToken, async (req, res) => {
+	try {
+		const { id, context } = req.body;
+		const campaign = await Campaign.findById(id);
+		if (!campaign) {
+			return res
+				.status(404)
+				.json(createResponse(false, null, "Campaign not found"));
+		}
+		if (campaign.userId !== req.user.uid) {
+			return res.status(403).json(createResponse(false, null, "Access denied"));
+		}
+
+		campaign.context = context;
+		await campaign.save();
+		return res.json(createResponse(true, campaign, "Context updated"));
+	} catch (error) {
+		console.error("Error updating context:", error);
+		return res
+			.status(500)
+			.json(createResponse(false, null, "Failed to update context"));
+	}
+});
+
+router.get("/contexts/confirm-context", authenticateToken, async (req, res) => {
+	try {
+		if (req.user.subscription.tier !== "premium") {
+			return res.status(200).json(createResponse(false, null, "Access denied"));
+		}
+		const campaigns = await Campaign.countDocuments({
+			context: "",
+		});
+		if (campaigns > 0) {
+			return res.status(200).json({
+				success: false,
+				count: campaigns,
+			});
+		}
+		return res.status(200).json({
+			success: true,
+		});
+	} catch (error) {
+		console.error("Error confirming context:", error);
+		return res
+			.status(500)
+			.json(createResponse(false, null, "Failed to confirm context"));
+	}
+});
+
 module.exports = router;

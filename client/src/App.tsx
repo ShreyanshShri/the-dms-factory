@@ -19,12 +19,12 @@ import CampaignInfo from "./pages/CampaignInfo";
 import CampaignEdit from "./pages/CampaignEdit";
 import Inbox from "./pages/Inbox";
 import Layout from "./components/Layout";
-import PaymentPlans from "./pages/PaymentOptions";
 import ContactMe from "./pages/Contact";
 import SubscriptionPage from "./pages/SubscriptionPage";
 import CancelPage from "./pages/CancelPage";
 import SuccessPage from "./pages/SuccessPage";
 import ManageSubscription from "./pages/ManageSubscription";
+import ManageContexts from "./pages/ManageContexts";
 import NotFound from "./pages/NotFound";
 import { AlertProvider } from "./contexts/AlertContext";
 import AlertContainer from "./components/AlertContainer";
@@ -32,7 +32,6 @@ import { ConfirmProvider } from "./contexts/ConfirmContext";
 import ConfirmContainer from "./components/ConfirmContainer";
 import { AuthProvider } from "./contexts/AuthContext";
 import { AdminProvider } from "./contexts/AdminContext";
-import PaymentPortal from "./pages/PaymentPortal";
 
 function App() {
 	return (
@@ -53,7 +52,10 @@ function App() {
 									<Route path="crm" element={<CRM />} />
 									<Route path="extension" element={<ExtensionDownload />} />
 									<Route path="create-campaign" element={<CreateCampaign />} />
-									<Route path="payment-plans" element={<PaymentPlans />} />
+									<Route
+										path="manage-campaign-contexts"
+										element={<ManageContexts />}
+									/>
 									<Route
 										path="manage-subscription"
 										element={<ManageSubscription />}
@@ -106,14 +108,6 @@ function App() {
 									element={
 										<ProtectedRoute>
 											<SuccessPage />
-										</ProtectedRoute>
-									}
-								/>
-								<Route
-									path="/payment-portal"
-									element={
-										<ProtectedRoute>
-											<PaymentPortal />
 										</ProtectedRoute>
 									}
 								/>

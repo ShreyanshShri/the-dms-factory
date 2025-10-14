@@ -7,6 +7,8 @@ import usePollingInbox from "../hooks/usePollingInbox";
 import { useAlert } from "../contexts/AlertContext";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { Link } from "react-router-dom";
+import { campaignAPI } from "../services/api";
 
 export default function ChatApp() {
 	const {
@@ -86,6 +88,10 @@ export default function ChatApp() {
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messages]);
 
+	useEffect(() => {
+		confirmContexts();
+	}, []);
+
 	// useEffect(() => {
 	// 	setInterested(activeConv?.interested);
 	// }, [activeConv]);
@@ -97,6 +103,19 @@ export default function ChatApp() {
 
 	const handleSearch = (e: any) => {
 		setSearchTerm(e.target.value);
+	};
+
+	const confirmContexts = async () => {
+		try {
+			const res = await campaignAPI.confirmContexts();
+			if (!res.success) {
+				alert.error(
+					`You have ${res.count} campaigns without contexts. Click on manage context to add them.`
+				);
+			}
+		} catch (err) {
+			console.log("Error confirming contexts:", err);
+		}
 	};
 
 	// const handleInterestedToggle = async () => {
@@ -145,8 +164,21 @@ export default function ChatApp() {
 			<div className="w-80 bg-gray-800 border-r border-gray-700 flex flex-col h-full overflow-auto">
 				{/* Header */}
 				<div className="p-4 border-b border-gray-700">
-					<h2 className="text-xl font-bold text-white mb-4">Inbox</h2>
-
+					<h2 className="text-xl font-bold text-white">Inbox</h2>
+					<div className="flex mt-2 mb-4">
+						<Link
+							to="/dashboard/manage-instagram-accounts"
+							className="btn-primary"
+						>
+							Manage Accounts
+						</Link>
+						<Link
+							to="/dashboard/manage-campaign-contexts"
+							className="btn-primary ml-2"
+						>
+							Manage Contexts
+						</Link>
+					</div>
 					{/* Search */}
 					<div className="mb-4">
 						<input

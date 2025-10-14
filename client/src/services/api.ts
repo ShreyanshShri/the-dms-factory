@@ -129,6 +129,21 @@ export const campaignAPI = {
 		const qs = new URLSearchParams(params).toString();
 		return await axiosInstance.get(`/campaign/analytics/trend?${qs}`);
 	},
+
+	listContexts: async (): Promise<any> => {
+		return await axiosInstance.get("/campaign/contexts/list-contexts");
+	},
+
+	updateContext: async (id: string, context: string): Promise<any> => {
+		return await axiosInstance.post("/campaign/contexts/update-context", {
+			id,
+			context,
+		});
+	},
+
+	confirmContexts: async (): Promise<any> => {
+		return await axiosInstance.get("/campaign/contexts/confirm-context");
+	},
 };
 
 export const accountAPI = {

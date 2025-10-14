@@ -497,7 +497,7 @@ router.post("/webhook", async (req, res) => {
 router.get(
 	"/all-conversations",
 	authenticateToken,
-	requireTier(["Standard", "Premium"]),
+	requireTier(["standard", "premium"]),
 	async (req, res) => {
 		try {
 			// Extract pagination params and filter params including search and selected accounts

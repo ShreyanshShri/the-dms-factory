@@ -9,6 +9,7 @@ const CampaignSchema = new mongoose.Schema({
 	userId: { type: String, required: true },
 	name: { type: String },
 	description: { type: String },
+	context: { type: String, default: "" },
 	platform: { type: String, enum: ["instagram", "twitter"] },
 	totalLeads: { type: Number, default: 0 },
 	variants: [
