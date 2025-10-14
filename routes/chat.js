@@ -182,7 +182,51 @@ router.get("/webhook", (req, res) => {
 
 const conversationTimers = new Map();
 
-async function sendConversationWebhook(convoKey, business_account_id) {
+// async function sendConversationWebhook(convoKey, business_account_id) {
+// 	try {
+// 		const conv = await InstagramConversation.findById(convoKey).exec();
+// 		if (!conv) {
+// 			console.error("Conversation document not found:", convoKey);
+// 			return;
+// 		}
+
+// 		if (!conv.messages || conv.messages.length === 0) {
+// 			console.error("No messages found for conversation:", convoKey);
+// 			return;
+// 		}
+
+// 		let formattedConversation = "";
+// 		conv.messages
+// 			.sort((a, b) => a.timestamp - b.timestamp)
+// 			.forEach((msg) => {
+// 				const isBusiness = msg.sender_id === conv.businessAccount.id;
+// 				const label = isBusiness ? "My msg" : "Prospect";
+// 				formattedConversation += `${label}: ${msg.text}\n`;
+// 			});
+
+// 		await axios.post(
+// 			// "https://n8n.aigrowtech.ru/webhook/6baef27-40e8-4f77-9b77-26039c0a8d68",
+// 			// "https://n8n.aigrowtech.ru/webhook-test/6baef27b-40e8-4ad9-b22a-10b41a1fff87",
+// 			"https://n8n.aigrowtech.ru/webhook/6baef27b-40e8-4ad9-b22a-10b41a1fff87",
+// 			{
+// 				conversation_key: convoKey,
+// 				business_account_id: conv.businessAccount.id,
+// 				client_account_id: conv.clientAccount.id,
+// 				client_username: conv.clientAccount.username,
+// 				formatted_conversation: formattedConversation.trim(),
+// 				timestamp: new Date().toISOString(),
+// 			}
+// 		);
+
+// 		console.log("Conversation sent to webhook", { convoKey });
+// 	} catch (error) {
+// 		console.error("Failed to send webhook:", error.message);
+// 	} finally {
+// 		conversationTimers.delete(convoKey);
+// 	}
+// }
+
+async function sendConversationWebhook(convoKey, _business_account_id) {
 	try {
 		const conv = await InstagramConversation.findById(convoKey).exec();
 		if (!conv) {
@@ -195,32 +239,49 @@ async function sendConversationWebhook(convoKey, business_account_id) {
 			return;
 		}
 
-		let formattedConversation = "";
-		conv.messages
-			.sort((a, b) => a.timestamp - b.timestamp)
-			.forEach((msg) => {
-				const isBusiness = msg.sender_id === conv.businessAccount.id;
-				const label = isBusiness ? "My msg" : "Prospect";
-				formattedConversation += `${label}: ${msg.text}\n`;
-			});
-
-		await axios.post(
-			// "https://n8n.aigrowtech.ru/webhook/6baef27-40e8-4f77-9b77-26039c0a8d68",
-			// "https://n8n.aigrowtech.ru/webhook-test/6baef27b-40e8-4ad9-b22a-10b41a1fff87",
-			"https://n8n.aigrowtech.ru/webhook/6baef27b-40e8-4ad9-b22a-10b41a1fff87",
-			{
-				conversation_key: convoKey,
-				business_account_id: conv.businessAccount.id,
-				client_account_id: conv.clientAccount.id,
-				client_username: conv.clientAccount.username,
-				formatted_conversation: formattedConversation.trim(),
-				timestamp: new Date().toISOString(),
-			}
+		// Convert Instagram messages to OpenAI format
+		const openAIMessages = aiService.convertToOpenAIFormat(
+			conv.messages,
+			conv.businessAccount.id
 		);
 
-		console.log("Conversation sent to webhook", { convoKey });
+		// Generate AI response
+		const aiResponse = await aiService.generateResponse(openAIMessages);
+
+		console.log("AI Generated Response:", aiResponse);
+
+		// send message
+
+		const account = await InstagramAccount.findById(conv.businessAccount.id);
+		if (!account) {
+			console.log("Sender account not found", conv.businessAccount.id);
+			return { error: "Sender account not found" };
+		}
+
+		const token = account.access_token;
+
+		const resp = await axios.post(
+			"https://graph.instagram.com/v23.0/me/messages",
+			{
+				recipient: { id: conv.clientAccount.id },
+				message: { text: message },
+			},
+			{ params: { access_token: token } }
+		);
+
+		return { success: true, message_id: resp.data.message_id };
+
+		// return {
+		// 	conversation_key: convoKey,
+		// 	business_account_id: conv.businessAccount.id,
+		// 	client_account_id: conv.clientAccount.id,
+		// 	client_username: conv.clientAccount.username,
+		// 	ai_response: aiResponse,
+		// 	timestamp: new Date().toISOString(),
+		// };
 	} catch (error) {
-		console.error("Failed to send webhook:", error.message);
+		console.error("Failed to generate AI response:", error.message);
+		throw error;
 	} finally {
 		conversationTimers.delete(convoKey);
 	}
