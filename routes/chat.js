@@ -822,7 +822,7 @@ router.delete(
 	async (req, res) => {
 		const account_id = req.params.account_id;
 		try {
-			await InstagramAccount.deleteOne({ user: req.user.uid, id: account_id });
+			await InstagramAccount.deleteOne({ user: req.user.uid, _id: account_id });
 			res.json({ success: true });
 		} catch (error) {
 			res.status(500).json({ success: false, message: error.message });
