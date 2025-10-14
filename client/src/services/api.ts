@@ -213,6 +213,14 @@ export const chatAPI = {
 	login: async (): Promise<any> => {
 		return await axiosInstance.get("/chats/login");
 	},
+
+	getInstagramAccounts: async (): Promise<any> => {
+		return await axiosInstance.get("/chats/instagram-accounts");
+	},
+
+	deleteAccount: async (accountId: string): Promise<any> => {
+		return await axiosInstance.delete(`/chats/instagram-accounts/${accountId}`);
+	},
 };
 
 // Dashboard API with proper TypeScript types

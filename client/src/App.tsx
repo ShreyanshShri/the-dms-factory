@@ -24,6 +24,7 @@ import SubscriptionPage from "./pages/SubscriptionPage";
 import CancelPage from "./pages/CancelPage";
 import SuccessPage from "./pages/SuccessPage";
 import ManageSubscription from "./pages/ManageSubscription";
+import ManageInstagramAccounts from "./pages/ManageInstagramAccounts";
 import ManageContexts from "./pages/ManageContexts";
 import NotFound from "./pages/NotFound";
 import { AlertProvider } from "./contexts/AlertContext";
@@ -55,6 +56,10 @@ function App() {
 									<Route
 										path="manage-campaign-contexts"
 										element={<ManageContexts />}
+									/>
+									<Route
+										path="manage-instagram-accounts"
+										element={<ManageInstagramAccounts />}
 									/>
 									<Route
 										path="manage-subscription"

@@ -34,7 +34,7 @@ function toFirestoreTimestamp(dateInput) {
 router.get(
 	"/login",
 	authenticateToken,
-	requireTier(["Standard", "Premium"]),
+	requireTier(["standard", "premium"]),
 	(req, res) => {
 		const scopes =
 			"instagram_business_basic,instagram_business_manage_messages";
@@ -86,8 +86,8 @@ router.get("/callback", async (req, res) => {
 		if (
 			user &&
 			user.subscription?.status !== "active" &&
-			(user.subscription?.tier !== "Premium" ||
-				user.subscription?.tier !== "Standard")
+			(user.subscription?.tier !== "premium" ||
+				user.subscription?.tier !== "standard")
 		) {
 			const redirectURL =
 				process.env.NODE_ENV === "production"
@@ -474,7 +474,7 @@ router.post("/webhook", async (req, res) => {
 					if (
 						user &&
 						user.subscription?.status === "active" &&
-						user.subscription?.tier === "Premium"
+						user.subscription?.tier === "premium"
 					) {
 						scheduleConversationWebhook(
 							convoKey,
@@ -589,7 +589,7 @@ router.get(
 router.get(
 	"/messages",
 	authenticateToken,
-	requireTier(["Standard", "Premium"]),
+	requireTier(["standard", "premium"]),
 	async (req, res) => {
 		const { recipient_id, sender_id, limit = 25, page = 1 } = req.query;
 		if (!recipient_id)
@@ -665,7 +665,7 @@ router.post("/send", async (req, res) => {
 router.post(
 	"/set-interested",
 	authenticateToken,
-	requireTier(["Standard", "Premium"]),
+	requireTier(["standard", "premium"]),
 	async (req, res) => {
 		try {
 			const { sender_id, recipient_id, state } = req.body;
@@ -684,7 +684,7 @@ router.post(
 router.post(
 	"/switch-campaign",
 	authenticateToken,
-	requireTier(["Standard", "Premium"]),
+	requireTier(["standard", "premium"]),
 	async (req, res) => {
 		try {
 			const { sender_id, recipient_id, campaign_id } = req.body;
@@ -713,7 +713,7 @@ router.post(
 router.get(
 	"/tags",
 	authenticateToken,
-	requireTier(["Standard", "Premium"]),
+	requireTier(["standard", "premium"]),
 	async (req, res) => {
 		try {
 			const accounts = await InstagramAccount.find({
@@ -742,7 +742,7 @@ router.get(
 router.post(
 	"/tags",
 	authenticateToken,
-	requireTier(["Standard", "Premium"]),
+	requireTier(["standard", "premium"]),
 	async (req, res) => {
 		try {
 			const { sender_id, recipient_id, tags } = req.body;
@@ -806,5 +806,28 @@ router.get("/conversations", authenticateToken, async (req, res) => {
 		res.status(500).json({ error: error.message });
 	}
 });
+
+router.get("/instagram-accounts", authenticateToken, async (req, res) => {
+	try {
+		const accounts = await InstagramAccount.find({ user: req.user.uid }).lean();
+		res.json({ success: true, accounts });
+	} catch (error) {
+		res.status(500).json({ success: false, message: error.message });
+	}
+});
+
+router.delete(
+	"/instagram-accounts/:account_id",
+	authenticateToken,
+	async (req, res) => {
+		const account_id = req.params.account_id;
+		try {
+			await InstagramAccount.deleteOne({ user: req.user.uid, id: account_id });
+			res.json({ success: true });
+		} catch (error) {
+			res.status(500).json({ success: false, message: error.message });
+		}
+	}
+);
 
 module.exports = router;
